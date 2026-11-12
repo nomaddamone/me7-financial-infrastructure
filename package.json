@@ -1,0 +1,32 @@
+{
+  "name": "me7",
+  "version": "0.0.1",
+  "private": true,
+  "description": "me7 — self-custody web wallet",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "2.4.0",
+    "@scure/bip32": "2.4.0",
+    "@scure/bip39": "2.4.0",
+    "@scure/btc-signer": "2.4.1",
+    "preact": "11.2.0",
+    "qr": "0.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "ethers": "6.17.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.7",
+    "vitest": "5.1.0"
+  }
+}

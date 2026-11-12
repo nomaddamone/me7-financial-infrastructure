@@ -1,0 +1,54 @@
+/* Withdrawal tab */
+.peer-balance {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+}
+.peer-addr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.peer-addr .btn {
+  flex: none;
+  white-space: nowrap;
+}
+.peer-addr .addr-value {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.peer-handle {
+  display: block;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.peer-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--dim);
+}
+.peer-steps .is-now,
+.peer-steps .is-done {
+  color: var(--fg);
+}
+.peer-step-mark {
+  display: inline-block;
+  width: 22px;
+}
+.peer-orders {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.peer-orders li {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+}

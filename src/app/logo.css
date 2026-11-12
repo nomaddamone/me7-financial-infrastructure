@@ -1,0 +1,55 @@
+/* me7 logo: outlined letters with light running along the outline. */
+
+.lg {
+  height: 104px;
+  margin: 0;
+  animation: rise 0.4s backwards;
+}
+.lg svg {
+  display: block;
+  width: 230px;
+  height: 104px;
+  overflow: visible;
+}
+/* The resting outline: a dim line and a barely-there fill. */
+.lg text {
+  font: 700 88px var(--mono);
+  letter-spacing: -0.04em;
+  fill: rgb(255 255 255 / 0.05);
+  stroke: #4a4a4a;
+  stroke-width: 1.5;
+}
+/* Bright streaks that travel along the outline forever. */
+.lg .lg-run {
+  fill: none;
+  stroke: var(--fg);
+  stroke-linecap: round;
+  stroke-dasharray: 90 410;
+  animation: lg-run 3.2s linear infinite;
+}
+/* On load the whole outline is drawn in bright, then fades to leave the streaks. */
+.lg .lg-draw {
+  fill: none;
+  stroke: var(--fg);
+  stroke-dasharray: 700;
+  animation: lg-draw 2.4s ease-out both;
+}
+@keyframes lg-run {
+  to {
+    stroke-dashoffset: -500;
+  }
+}
+@keyframes lg-draw {
+  0% {
+    stroke-dashoffset: 700;
+    opacity: 1;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}

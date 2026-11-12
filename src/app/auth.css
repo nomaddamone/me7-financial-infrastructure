@@ -1,0 +1,172 @@
+/* Sign-up and sign-in: file drop zone, password meter, key derivation progress. */
+
+.drop {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--dim);
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s, scale 0.15s;
+}
+.drop:hover,
+.drop:focus-within,
+.drop--over {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+.drop--over {
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+  scale: 1.01;
+}
+.drop--has {
+  color: var(--fg);
+  border-style: solid;
+  border-color: var(--fg);
+}
+.drop-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.drop-icon {
+  font-size: 24px;
+  line-height: 1;
+  animation: drop-bob 1.6s ease-in-out infinite;
+}
+.drop--has .drop-icon {
+  animation: none;
+}
+.drop-text {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+@keyframes drop-bob {
+  50% {
+    translate: 0 4px;
+  }
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.meter i {
+  height: 3px;
+  background: var(--line);
+  transition: background-color 0.2s;
+}
+.meter i.on {
+  background: var(--fg);
+}
+
+.kdf-bar {
+  height: 12px;
+  border: 1px solid var(--line);
+}
+.kdf-bar span {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--fg) 0 7px, transparent 7px 10px);
+}
+.kdf-text {
+  margin: 0;
+  font-size: 13px;
+}
+
+.file-name {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--bg);
+}
+.file-name::before {
+  content: '▸ ';
+  color: var(--dim);
+}
+.auth-alt {
+  justify-self: center;
+}
+
+/* Agreement before creating an account */
+.terms-intro {
+  padding: 10px 12px;
+  border-left: 2px solid var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+.terms-sec h3 {
+  margin: 4px 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.terms-sec h3::before {
+  content: '## ';
+  color: var(--dim);
+  font-weight: 400;
+}
+.terms-sec ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--dim);
+}
+.terms-sec li {
+  position: relative;
+  padding-left: 2ch;
+}
+.terms-sec li::before {
+  content: '—';
+  position: absolute;
+  left: 0;
+}
+.terms-checks {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+/* Terminal-style checkbox: [ ] and [x] */
+.check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1ch;
+  font-size: 13px;
+  cursor: pointer;
+}
+.check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.check-box {
+  font-weight: 700;
+  white-space: pre;
+}
+.check-box::before {
+  content: '[ ]';
+}
+.check input:checked + .check-box::before {
+  content: '[x]';
+}
+.check input:focus-visible + .check-box {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+.check:hover .check-box {
+  color: var(--bg);
+  background: var(--fg);
+}

@@ -1,0 +1,116 @@
+/* Start page actions: two plain lines that invert on hover. Nothing here is animated. */
+
+.term {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  font-size: 15px;
+  text-shadow: 0 0 8px var(--bg), 0 0 2px var(--bg);
+}
+.cmd {
+  display: flex;
+  gap: 2ch;
+  width: 100%;
+  margin: 0;
+  padding: 7px 8px;
+  font: inherit;
+  text-align: left;
+  text-shadow: inherit;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+.cmd-name {
+  min-width: 6ch;
+  font-weight: 700;
+  color: var(--fg);
+}
+.cmd:hover,
+.cmd:focus-visible {
+  color: var(--bg);
+  background: var(--fg);
+  text-shadow: none;
+  outline: none;
+}
+.cmd:hover .cmd-name,
+.cmd:focus-visible .cmd-name {
+  color: var(--bg);
+}
+
+/* Shown while a file is being dragged over the page. */
+.dropveil {
+  position: fixed;
+  inset: 12px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border: 1px dashed var(--fg);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/* The Ledger entry: a quiet link under the two commands. */
+.cta {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.lmark {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: square;
+}
+.lbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 10px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--dim);
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+  text-shadow: 0 0 8px var(--bg), 0 0 2px var(--bg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.lbtn:hover,
+.lbtn:focus-visible {
+  color: var(--fg);
+  outline: none;
+}
+
+/* The name under the project's own quote: it is there, out of focus, and the focus keeps hunting. */
+.unloaded {
+  display: inline-block;
+  letter-spacing: 0.04em;
+  white-space: pre;
+  filter: blur(3.5px);
+  animation: unloaded-focus 3.2s ease-in-out infinite;
+}
+@keyframes unloaded-focus {
+  50% {
+    filter: blur(1.6px);
+  }
+  62% {
+    filter: blur(5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .unloaded {
+    animation: none;
+  }
+}

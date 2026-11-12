@@ -1,0 +1,105 @@
+/* Header: coin prices before signing in, the account's short address after. Always one line. */
+.top-tools {
+  flex-wrap: nowrap;
+}
+.top-tools .link {
+  white-space: nowrap;
+}
+.hd-prices {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* The name and, after it, the switch between the parts of the platform with its menu. */
+.hd-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.hd-section {
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 0;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hd-section:hover,
+.hd-section[aria-expanded='true'] {
+  color: var(--fg);
+}
+.hd-section:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+}
+.hd-section-mark {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 400;
+}
+.hd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  min-width: 170px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-shadow: none;
+}
+.hd-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font: inherit;
+  font-weight: 700;
+  padding: 10px 12px;
+  color: var(--dim);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.hd-menu-item + .hd-menu-item {
+  border-top: 1px solid var(--line);
+}
+.hd-menu-item:hover,
+.hd-menu-item[aria-checked='true'] {
+  color: var(--fg);
+}
+.hd-menu-item:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
+}
+@media (max-width: 480px) {
+  .top-tools {
+    gap: 9px;
+  }
+  .hd-prices {
+    gap: 8px;
+  }
+}
+.hd-chip {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 7px;
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hd-chip:hover {
+  color: var(--fg);
+  border-color: var(--dim);
+}
+.hd-chip:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}

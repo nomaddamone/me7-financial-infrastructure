@@ -1,0 +1,273 @@
+/* Trading terminal */
+.shell.shell--wide {
+  max-width: 1180px;
+}
+.terminal {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Market bar: pair, last price, the day's numbers */
+/* Raised above the panels below it, so the list of markets opens over the chart and not under it. */
+.panel.term-bar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 26px;
+  overflow: visible;
+}
+.term-market {
+  position: relative;
+}
+.term-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-weight: 700;
+  padding: 6px 10px;
+  color: var(--fg);
+  text-align: left;
+  background: none;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.term-pick:hover,
+.term-pick[aria-expanded='true'] {
+  border-color: var(--dim);
+}
+.term-pick .asset-usd {
+  font-weight: 400;
+}
+.term-markets {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 230px;
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.term-markets button {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  font: inherit;
+  padding: 9px 12px;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.term-markets li + li button {
+  border-top: 1px solid var(--line);
+}
+.term-markets button:hover,
+.term-markets button[aria-selected='true'] {
+  color: var(--fg);
+}
+.term-markets button[aria-selected='true'] {
+  font-weight: 700;
+}
+.term-last {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 150px;
+}
+.term-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0 0 0 auto;
+  font-size: 12px;
+}
+.term-stats dt {
+  color: var(--dim);
+  font-size: 11px;
+}
+.term-stats dd {
+  margin: 0;
+  white-space: nowrap;
+}
+.term-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--dim);
+}
+.term-dot--live {
+  background: var(--fg);
+  border-color: var(--fg);
+  animation: chart-pulse 2s ease-out infinite;
+}
+
+/* Chart on the left, order and market flow on the right; one column on a narrow screen */
+.term-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .term-grid {
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+}
+.term-side {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.term-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+.period[aria-pressed='true'] {
+  color: var(--fg);
+  border-color: var(--dim);
+}
+.candles {
+  position: relative;
+  height: 300px;
+  margin: 0 -6px 0 0;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+@media (min-width: 900px) {
+  .candles {
+    height: 470px;
+  }
+}
+.candles canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.candles--wait {
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+  cursor: default;
+}
+
+/* Order form */
+.term-shares {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.term-shares .period {
+  padding: 6px 0;
+  border: 1px solid var(--line);
+}
+.term-shares .period:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Order book and tape */
+.term-book {
+  display: grid;
+  gap: 1px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.term-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 2px 4px;
+}
+.term-row > span:last-child {
+  text-align: right;
+}
+.term-row--three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.term-row--three > span:nth-child(2) {
+  text-align: right;
+}
+.term-head {
+  color: var(--dim);
+  font-size: 11px;
+  padding-bottom: 6px;
+}
+/* The bar behind a level shows how much is waiting there, relative to the largest level on screen. */
+.term-ask::before,
+.term-bid::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: var(--fill, 0%);
+  background: var(--fg);
+  opacity: 0.07;
+  pointer-events: none;
+}
+.term-ask {
+  color: var(--dim);
+}
+.term-bid::before {
+  opacity: 0.13;
+}
+.term-mid {
+  margin: 4px 0;
+  padding: 6px 4px;
+  font-size: 14px;
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.term-mid .dim {
+  font-size: 11px;
+  font-weight: 400;
+  align-self: center;
+}
+
+/* Trades table */
+.term-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+}
+.term-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.term-table th {
+  padding: 0 8px 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--dim);
+  text-align: left;
+}
+.term-table td {
+  padding: 10px 8px;
+  vertical-align: middle;
+  border-top: 1px solid var(--line);
+}
+.term-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.term-actions .btn + .btn {
+  margin-left: 6px;
+}
+.trade-return {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
