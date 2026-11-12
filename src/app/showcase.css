@@ -5,12 +5,15 @@
   touch-action: pan-y;
   user-select: none;
   outline: none;
+  /* The film gives way on a low screen, so the start page fits without scrolling:
+     520px is everything else on the page (header, caption, slider, buttons, margins). */
+  --sc-film: clamp(100px, calc(100dvh - 520px), 200px);
 }
 /* Every slide has the same room, so what is under the showcase does not jump. */
 .sc-stage {
   display: grid;
   align-content: center;
-  min-height: 430px;
+  min-height: calc(var(--sc-film) + 230px);
 }
 .sc-hero,
 .sc-slide {
@@ -27,7 +30,7 @@
 .sc-film {
   display: block;
   width: 100%;
-  height: 200px;
+  height: var(--sc-film);
   cursor: grab;
 }
 .sc-caption {
@@ -99,4 +102,10 @@
   .sc-slide {
     animation: none;
   }
+}
+
+/* On a low screen the first slide gives up its air above and below, so it fits the same room as the films. */
+.sc .hero {
+  padding-top: clamp(2px, calc((100dvh - 615px) * 0.55), 34px);
+  padding-bottom: clamp(2px, calc((100dvh - 615px) * 0.4), 26px);
 }

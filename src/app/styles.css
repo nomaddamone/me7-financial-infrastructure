@@ -289,19 +289,6 @@ body {
   letter-spacing: -0.03em;
   color: var(--dim);
 }
-/* The quiet link to the source code under the start page's buttons. */
-.source-link {
-  display: block;
-  margin-top: 18px;
-  font-size: 12px;
-  text-align: center;
-  color: var(--dim);
-  text-decoration: none;
-}
-.source-link:hover,
-.source-link:focus-visible {
-  color: var(--fg);
-}
 /* A rotating quote; the block keeps its height so the buttons below don't jump. */
 .quote {
   margin: 18px 0 0;

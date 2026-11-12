@@ -36,6 +36,31 @@
   outline: 2px solid var(--fg);
   outline-offset: 3px;
 }
+/* The GitHub mark after the name: the way to the source code. */
+.hd-source {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 6px;
+  color: var(--dim);
+  border-radius: 50%;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.hd-source svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.hd-source:hover {
+  color: var(--fg);
+  transform: scale(1.12);
+}
+.hd-source:focus-visible {
+  color: var(--fg);
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
+}
 .hd-section-mark {
   margin-left: 4px;
   font-size: 10px;

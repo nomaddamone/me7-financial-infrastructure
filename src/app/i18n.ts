@@ -22,7 +22,7 @@ const ru = {
   create: 'создать аккаунт',
   import: 'войти в систему',
   dropKey: 'отпустите файл-ключ, чтобы войти',
-  sourceCode: 'код открыт: GitHub',
+  sourceCode: 'исходный код на GitHub',
   back: 'назад',
   createTitle: 'запасной ключ',
   createLead:
@@ -707,7 +707,7 @@ const en: Dict = {
   create: 'create account',
   import: 'sign in',
   dropKey: 'drop the key file to sign in',
-  sourceCode: 'open source: GitHub',
+  sourceCode: 'source code on GitHub',
   back: 'back',
   createTitle: 'spare key',
   createLead:

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { MAX_CARRIER_BYTES } from '../core/index.ts';
-import { SOURCE_URL } from '../net/endpoints.ts';
 import type { Picked } from './auth.tsx';
 import { Cta } from './cta.tsx';
 import { Showcase } from './showcase.tsx';
@@ -121,9 +120,6 @@ export function Welcome({
       {LOGO_ONLY ? null : healthy ? (
         <div class="rise">
           <Cta t={t} onCreate={onCreate} onImport={onImport} onLedger={onLedger} />
-          <a class="source-link" href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
-            {t.sourceCode} ↗
-          </a>
         </div>
       ) : (
         <p class="alert rise" role="alert">
