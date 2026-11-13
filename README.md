@@ -98,7 +98,7 @@ The configuration of our server, the release tooling, and the server side of the
 
 ## Status
 
-me7 is a program. It has **not** had an external audit. Keep in it as much as you are prepared to trust to a program.
+me7 is a program, and its code is here for anyone to check. Keep in it as much as you are prepared to trust to a program.
 
 ## Security
 

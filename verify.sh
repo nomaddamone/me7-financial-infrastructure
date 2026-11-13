@@ -1,7 +1,7 @@
 #!/bin/sh
 # Check that https://me7.network serves exactly what this source builds.
-# Builds the site, downloads the live page with every script and style it refers to,
-# and compares SHA-256 sums. Needs: node, npm ci done, curl, shasum or sha256sum.
+# Builds the site, downloads every file of it from the live site (the wallet's page, its
+# scripts and styles, the public pages) and compares SHA-256 sums. Needs: node, npm ci done, curl, shasum or sha256sum.
 set -eu
 SITE="${ME7_SITE:-https://me7.network}"
 cd "$(dirname "$0")"
@@ -15,8 +15,8 @@ LIVE="$(mktemp -d)"
 trap 'rm -rf "$LIVE"' EXIT
 curl -sfL "$SITE/index.html" -o "$LIVE/index.html"
 
-# The files to compare: the page itself and every asset it names, in the live page and in the build.
-FILES="index.html $( (grep -oE 'assets/[A-Za-z0-9_.-]+' "$LIVE/index.html"; grep -oE 'assets/[A-Za-z0-9_.-]+' dist/index.html) | sort -u)"
+# The files to compare: everything the build produced, and everything the live page names.
+FILES="$( ( (cd dist && find . -type f | sed 's|^\./||' | grep -v '^version.txt$'); grep -oE 'assets/[A-Za-z0-9_.-]+' "$LIVE/index.html") | sort -u)"
 
 echo "== compare with $SITE"
 BAD=0

@@ -26,6 +26,6 @@ Please do not test against other people's wallets or funds, and do not load the 
 - A device or browser that is already compromised (malware, a hostile extension with full page access).
 - Denial of service against third-party nodes and APIs the wallet reads from.
 
-## No audit
+## Why the code is public
 
-The code has not had an external audit. It is published so that anyone can check it.
+So that anyone can check it. If you have looked through a part of it carefully, tell us what you found, even if it was nothing.

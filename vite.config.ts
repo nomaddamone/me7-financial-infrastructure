@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
+import { frontPageHead, frontPageText, siteFiles } from './site/render.ts';
 import { ALL_ENDPOINTS } from './src/net/endpoints.ts';
 
 /**
@@ -28,9 +30,26 @@ function csp(): Plugin {
   };
 }
 
+/**
+ * The public pages (site/): what search engines and link previews read. The front page gets
+ * its description and, inside the wallet's own element, the text it shows before the wallet
+ * starts; every other page is written out as plain HTML with no scripts.
+ */
+function publicPages(): Plugin {
+  return {
+    name: 'me7-public-pages',
+    apply: 'build',
+    transformIndexHtml: (html) => html.replace('<!--seo-->', frontPageHead()).replace('<!--pre-->', frontPageText()),
+    generateBundle() {
+      for (const file of siteFiles()) this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source });
+      this.emitFile({ type: 'asset', fileName: 'site.css', source: readFileSync(new URL('./site/site.css', import.meta.url), 'utf8') });
+    },
+  };
+}
+
 export default defineConfig({
   base: './',
-  plugins: [csp()],
+  plugins: [csp(), publicPages()],
   build: { target: 'es2022', sourcemap: false },
   // In development the relay runs beside the dev server (node dist-relay/relay.mjs) and is reached the same way as on the site.
   server: { port: 5173, strictPort: true, proxy: { '/relay': 'http://127.0.0.1:8787', '/sync': 'http://127.0.0.1:8788' } },

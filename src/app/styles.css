@@ -261,6 +261,16 @@ body {
   font-size: 13px;
 }
 
+/* The plain text the page arrives with (index.html), for readers that run no scripts: kept out of sight, the wallet draws itself in its place. */
+.pre {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Welcome */
 .hero {
   padding: 34px 0 26px;
