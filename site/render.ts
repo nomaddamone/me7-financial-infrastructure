@@ -78,7 +78,8 @@ ${LANGS.map((l) => `<link rel="alternate" hreflang="${l}" href="${ORIGIN + pathO
 <meta property="og:image" content="${ORIGIN}/og.png">
 <meta property="og:locale" content="${lang === 'ru' ? 'ru_RU' : 'en_US'}">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.png" type="image/png" sizes="96x96">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/site.css">
 ${structured(page, lang)}
@@ -127,7 +128,8 @@ export function frontPageHead(): string {
     `<meta property="og:url" content="${ORIGIN}/" />`,
     `<meta property="og:image" content="${ORIGIN}/og.png" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
-    `<link rel="icon" href="/favicon.png" type="image/png" />`,
+    `<link rel="icon" href="/favicon.ico" sizes="48x48" />`,
+    `<link rel="icon" href="/favicon.png" type="image/png" sizes="96x96" />`,
     `<link rel="apple-touch-icon" href="/apple-touch-icon.png" />`,
   ].join('\n    ');
 }
