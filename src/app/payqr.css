@@ -1,4 +1,95 @@
 /* me7's own QR code, the address code beside it, and the scanner. */
+/* The code and, over it for a second, the film of it appearing. */
+.brand-qr-box {
+  position: relative;
+  width: 200px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.brand-qr-box .qr {
+  width: 100%;
+}
+.brand-qr--wait {
+  visibility: hidden;
+}
+.brand-qr-film {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+}
+.brand-qr-film--off {
+  visibility: hidden;
+}
+
+/* The address with its copy control. */
+.aline {
+  font: inherit;
+  color: var(--dim);
+  text-align: left;
+}
+.aline code {
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.aline-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+.aline-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+}
+button.aline {
+  cursor: pointer;
+}
+button.aline:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+.is-done .aline-foot,
+.is-done .aline-icon {
+  color: var(--accent);
+}
+
+/* A tile: the address in groups of four, the whole tile copies. */
+.aline--tile {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 12px 10px;
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.aline--tile:hover {
+  border-color: var(--fg);
+}
+.aline-chunks {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  justify-content: space-between;
+  gap: 6px 4px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.aline-chunks .on {
+  font-weight: 700;
+  color: var(--fg);
+}
+.aline--tile .aline-foot {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
 /* The address as eight digits and a small picture. */
 .acode {
   display: grid;

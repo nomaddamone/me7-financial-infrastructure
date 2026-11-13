@@ -54,7 +54,7 @@ import {
 } from '../net/tron.ts';
 import { buildPayText, parsePayText, type PayRequest } from '../core/payqr.ts';
 import { loadRotation, rotationOwners, signWithAddresses, type Rotation } from './addresses.ts';
-import { AddressCode, BrandQr, Scanner } from './payqr.tsx';
+import { AddressCode, AddressLine, BrandQr, Scanner } from './payqr.tsx';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, feeAssetOf, type AssetDef } from './assets.ts';
 import { errorText, FileDrop, useProgress, Working, type Picked } from './auth.tsx';
@@ -314,9 +314,8 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
       </div>
       {current.address ? (
         <>
-          <BrandQr text={payText(current.id, current.address, ask)} />
-          <code class="addr-value">{current.address}</code>
-          <CopyButton t={t} value={current.address} />
+          <BrandQr text={payText(current.id, current.address, ask)} reveal={current.address} />
+          <AddressLine t={t} address={current.address} />
           <AddressCode t={t} address={current.address} note />
           {current.id === 'usdc' && (
             <label class="field">

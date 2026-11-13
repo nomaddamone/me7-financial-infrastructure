@@ -43,7 +43,7 @@ function reads(modules: readonly (readonly boolean[])[], text: string): boolean 
  * put in, the result is read back, and if it does not give the text exactly,
  * the code is shown without the name.
  */
-export function BrandQr({ text }: { text: string }) {
+export function BrandQr({ text, reveal }: { text: string; reveal?: string }) {
   const modules = useMemo(() => {
     // The library insists on a margin of at least one module; it is taken off again, and the code draws its own.
     const make = (ecc: 'high' | 'quartile' | 'medium') =>
@@ -81,11 +81,118 @@ export function BrandQr({ text }: { text: string }) {
   let d = '';
   modules.forEach((row, y) => row.forEach((on, x) => (d += on ? `M${x} ${y}h1v1h-1z` : '')));
   const side = n + QUIET * 2;
+
+  // The code is drawn in by a short animation whenever `reveal` changes (a new address), not on every keystroke.
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const latest = useRef(modules);
+  latest.current = modules;
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    const el = canvas.current;
+    if (reveal === undefined || !el || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const grid = latest.current;
+    const size = Math.round(el.clientWidth * Math.min(2, devicePixelRatio || 1));
+    el.width = size;
+    el.height = size;
+    const ctx = el.getContext('2d');
+    if (!ctx) return;
+    const seeds = Float32Array.from({ length: grid.length * grid.length * 3 }, () => Math.random());
+    setPlaying(true);
+    const started = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - started) / REVEAL_MS);
+      drawReveal(ctx, size, grid, p, seeds);
+      if (p < 1) frame = requestAnimationFrame(step);
+      else setPlaying(false);
+    };
+    frame = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(frame);
+      setPlaying(false);
+    };
+  }, [reveal]);
+
   return (
-    <svg class="qr brand-qr" viewBox={`${-QUIET} ${-QUIET} ${side} ${side}`} role="img" aria-label="QR">
-      <rect x={-QUIET} y={-QUIET} width={side} height={side} fill="#fff" />
-      <path d={d} fill="#000" />
+    <div class="brand-qr-box">
+      <svg class={playing ? 'qr brand-qr brand-qr--wait' : 'qr brand-qr'} viewBox={`${-QUIET} ${-QUIET} ${side} ${side}`} role="img" aria-label="QR">
+        <rect x={-QUIET} y={-QUIET} width={side} height={side} fill="#fff" />
+        <path d={d} fill="#000" />
+      </svg>
+      <canvas ref={canvas} class={playing ? 'brand-qr-film' : 'brand-qr-film brand-qr-film--off'} aria-hidden="true" />
+    </div>
+  );
+}
+
+const REVEAL_MS = 1100;
+const clamp = (x: number) => Math.max(0, Math.min(1, x));
+const easeOut = (x: number) => 1 - (1 - x) ** 3;
+
+/** One frame of the code appearing: particles from all over the square gather into it. `p` runs from 0 to 1; at 1 the picture is exactly the code. */
+function drawReveal(ctx: CanvasRenderingContext2D, size: number, grid: boolean[][], p: number, seeds: Float32Array) {
+  const n = grid.length;
+  const cell = size / (n + QUIET * 2);
+  const seed = (x: number, y: number, k: number) => seeds[(y * n + x) * 3 + k] ?? 0;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#000';
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      if (grid[y]?.[x] !== true) continue;
+      // Each particle sets off at its own moment and slows as it arrives.
+      const q = clamp((p - seed(x, y, 0) * 0.38) / 0.6);
+      if (q <= 0) continue;
+      const e = easeOut(q);
+      const fromX = seed(x, y, 1) * size;
+      const fromY = seed(x, y, 2) * size;
+      const s = cell * (0.35 + 0.65 * e) + 0.5;
+      ctx.globalAlpha = Math.min(1, q * 3);
+      ctx.fillRect(fromX + ((QUIET + x + 0.5) * cell - fromX) * e - s / 2, fromY + ((QUIET + y + 0.5) * cell - fromY) * e - s / 2, s, s);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** The address to receive on, with the way to copy it. */
+export function AddressLine({ t, address }: { t: Dict; address: string }) {
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!done) return;
+    const id = setTimeout(() => setDone(false), 1400);
+    return () => clearTimeout(id);
+  }, [done]);
+  const copy = () => {
+    navigator.clipboard?.writeText(address).then(
+      () => setDone(true),
+      () => undefined,
+    );
+  };
+  // The beginning and the end are what people compare, so they are the bright part.
+  const head = address.slice(0, 6);
+  const tail = address.slice(-4);
+  const middle = address.slice(6, -4);
+  const icon = (
+    <svg class="aline-icon" viewBox="0 0 16 16" aria-hidden="true">
+      {done ? <path d="M3 8.5l3.2 3.2L13 5" /> : <path d="M5.5 5.5v-3h8v8h-3M2.5 5.5h8v8h-8z" />}
     </svg>
+  );
+  // The compared ends whole, the middle in fours: ten groups for an EVM address, two even rows.
+  const chunks = [head, ...(middle.match(/.{1,4}/g) ?? []), tail];
+  return (
+    <button type="button" class={done ? 'aline aline--tile is-done' : 'aline aline--tile'} onClick={copy}>
+      <code class="aline-chunks">
+        {chunks.map((c, i) => (
+          <span key={i} class={i === 0 || i === chunks.length - 1 ? 'on' : ''}>
+            {c}
+          </span>
+        ))}
+      </code>
+      <span class="aline-foot">
+        {icon}
+        {done ? t.copied : t.copy}
+      </span>
+    </button>
   );
 }
 
