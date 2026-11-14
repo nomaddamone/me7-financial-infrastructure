@@ -1,5 +1,5 @@
 import type { GaslessPricing, GaslessRequest, SignedAuthorization } from '../core/gasless.ts';
-import { GASLESS } from './endpoints.ts';
+import { GASLESS, TRON_GASLESS } from './endpoints.ts';
 
 /** Why the relay did not take an operation; the codes are the relay's own (see server/relay-core.ts). */
 export class RelayError extends Error {
@@ -65,5 +65,38 @@ export async function relayIssueName(label: string, owner: string, fee: SignedAu
   const body = JSON.stringify({ chain: 'base', label, owner, fee }, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value));
   const answer = (await ask('/name', { method: 'POST', headers: { 'content-type': 'application/json' }, body })) as { ok?: unknown; hash?: unknown; error?: unknown } | null;
   if (answer?.ok === true && typeof answer.hash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(answer.hash)) return answer.hash;
+  throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+}
+
+/** The same door, for the Tron side of the service. */
+async function askTron(path: string, init?: RequestInit): Promise<unknown> {
+  const controller = new AbortController();
+  // Renting energy and waiting for two transfers to settle takes the service up to a minute and a half.
+  const timer = setTimeout(() => controller.abort(), 120_000);
+  try {
+    const res = await fetch(`${TRON_GASLESS.path}${path}`, { ...init, signal: controller.signal });
+    return (await res.json()) as unknown;
+  } catch {
+    throw new RelayError('down');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** What sending this much USDT on Tron without TRX would cost, in USDT's units, and where the fee goes. Throws when it cannot be done. */
+export async function fetchTronQuote(from: string, to: string, amount: bigint): Promise<{ fee: bigint; receiver: string }> {
+  const answer = (await askTron(`/quote?from=${from}&to=${to}&amount=${amount}`)) as { ok?: unknown; fee?: unknown; receiver?: unknown; error?: unknown } | null;
+  if (answer?.ok !== true) throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+  if (typeof answer.fee !== 'string' || !/^[0-9]{1,12}$/.test(answer.fee) || typeof answer.receiver !== 'string') throw new RelayError('down');
+  const fee = BigInt(answer.fee);
+  // A fee below the service's own part, or an absurd one, is not believed; nor is a fee address other than the one this page was built with.
+  if (fee < TRON_GASLESS.service || fee > TRON_GASLESS.maxFee || answer.receiver !== TRON_GASLESS.receiver) throw new RelayError('down');
+  return { fee, receiver: answer.receiver };
+}
+
+/** Hand the two signed transfers to the service. Returns the id of the payment's transaction. */
+export async function relayTronSend(main: string, fee: string): Promise<string> {
+  const answer = (await askTron('/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ main, fee }) })) as { ok?: unknown; hash?: unknown; error?: unknown } | null;
+  if (answer?.ok === true && typeof answer.hash === 'string' && /^[0-9a-f]{64}$/.test(answer.hash)) return answer.hash;
   throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
 }

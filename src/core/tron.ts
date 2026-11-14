@@ -34,6 +34,12 @@ export function tronAddressFromPublicKey(publicKey: Uint8Array): string {
   return base58.encode(raw);
 }
 
+/** The address written from its 21 raw bytes (0x41 + 20). */
+export function tronAddressFromBytes(raw: Uint8Array): string {
+  if (raw.length !== 21 || raw[0] !== 0x41) throw new Error('Invalid Tron address');
+  return base58.encode(raw);
+}
+
 export function tronAddressFromPrivateKey(privateKey: Uint8Array): string {
   return tronAddressFromPublicKey(secp256k1.getPublicKey(privateKey, false));
 }

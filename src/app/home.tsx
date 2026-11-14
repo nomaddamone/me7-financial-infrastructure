@@ -26,10 +26,10 @@ import {
 import { gaslessFee, type GaslessPricing } from '../core/gasless.ts';
 import { isUsed, planAuthorizations, planCollect, planPayment, planSendAll, type PaymentPlan } from '../core/rotation.ts';
 import { fetchBitcoinBalance, fetchEvmBalance, formatUnits } from '../net/balances.ts';
-import { GASLESS, hostOf, NET } from '../net/endpoints.ts';
+import { GASLESS, hostOf, NET, TRON_GASLESS } from '../net/endpoints.ts';
 import { parseName } from '../core/names.ts';
 import { resolveName } from '../net/names.ts';
-import { fetchRelayPricing, RelayError, relaySend } from '../net/relay.ts';
+import { fetchRelayPricing, fetchTronQuote, RelayError, relaySend, relayTronSend } from '../net/relay.ts';
 import { findEvmTransaction, PERIODS, type Change, type Period } from '../net/history.ts';
 import {
   broadcastBitcoin,
@@ -408,7 +408,9 @@ type Prepared =
   | (PreparedBase & { kind: 'gasless'; plan: PaymentPlan })
   | (PreparedBase & { kind: 'btc'; plan: BitcoinSendPlan })
   // A Tron transaction expires a minute after it is built, so it is built at send time.
-  | (PreparedBase & { kind: 'tron'; feeLimit: bigint; activates: boolean });
+  | (PreparedBase & { kind: 'tron'; feeLimit: bigint; activates: boolean })
+  // USDT on Tron sent without TRX: me7's service rents the energy, and the fee is in USDT, paid by a second transfer to `receiver`.
+  | (PreparedBase & { kind: 'tronless'; receiver: string });
 
 async function prepareBitcoin(wallet: Wallet, asset: AssetDef, recipient: string, units: bigint | null): Promise<Prepared> {
   const [utxos, rate] = await Promise.all([
@@ -479,8 +481,41 @@ async function prepareTron(wallet: Wallet, asset: AssetDef, recipient: string, u
   return { kind: 'tron', asset, to: recipient, amount: value, fee, feeLimit: 0n, activates: !them.exists };
 }
 
+/**
+ * USDT on Tron for a wallet with no TRX to pay the network: me7's service is asked what it would
+ * charge to rent the energy, and the fee comes out of the same USDT.
+ */
+async function prepareTronless(wallet: Wallet, asset: AssetDef, recipient: string, units: bigint | null): Promise<Prepared> {
+  if (!asset.contract) throw new Problem('noGas');
+  const held = await fetchTrc20Balance(NET.tron.nodes, asset.contract, wallet.tron);
+  if (held <= 0n) throw new Problem('noFunds');
+  try {
+    // Sending everything: the fee is found first, for the whole balance, and what is left after it is sent.
+    const first = await fetchTronQuote(wallet.tron, recipient, units ?? held);
+    const value = units ?? held - first.fee;
+    if (value <= 0n || value + first.fee > held) throw new Problem('noFunds');
+    return { kind: 'tronless', asset, to: recipient, amount: value, fee: first.fee, receiver: first.receiver };
+  } catch (err) {
+    if (err instanceof Problem) throw err;
+    throw new Problem(err instanceof RelayError && err.code === 'no-funds' ? 'noFunds' : 'noGas');
+  }
+}
+
+/** Sign the payment and the fee, and hand both to me7's service unsent. Returns the payment's transaction id. */
+async function sendTronless(wallet: Wallet, prepared: Extract<Prepared, { kind: 'tronless' }>): Promise<string> {
+  const contract = prepared.asset.contract;
+  if (!contract) throw new Error('no token contract');
+  const block = await fetchTronBlock(NET.tron.nodes);
+  // The service needs time to rent the energy before it sends them, so they stay good for ten minutes, not one.
+  const ref = { ...tronRef(block, Date.now()), expiration: block.timestamp + TRON_GASLESS.lifetime };
+  const main = buildTrc20Transfer(wallet.tron, contract, prepared.to, prepared.amount, ref, TRON_GASLESS.feeLimit);
+  const fee = buildTrc20Transfer(wallet.tron, contract, prepared.receiver, prepared.fee, ref, TRON_GASLESS.feeLimit);
+  return withTronKey(wallet, (key) => relayTronSend(signTronTransaction(main, key).signedHex, signTronTransaction(fee, key).signedHex));
+}
+
 /** Sign and broadcast a prepared transfer of any coin but relayed USDC. Returns the transaction id. */
 async function executeTransfer(wallet: Wallet, prepared: Exclude<Prepared, { kind: 'gasless' }>): Promise<string> {
+  if (prepared.kind === 'tronless') return sendTronless(wallet, prepared);
   if (prepared.kind === 'evm') {
     return withEvmKey(wallet, (key) => {
       const { raw, hash } = signEvmTransaction(prepared.tx, key);
@@ -633,7 +668,11 @@ function Send({
         network === 'btc'
           ? await prepareBitcoin(wallet, asset, recipient, units)
           : network === 'tron'
-            ? await prepareTron(wallet, asset, recipient, units)
+            ? // A wallet with TRX pays the network itself; one without it sends USDT through me7's service.
+              await prepareTron(wallet, asset, recipient, units).catch((err: unknown) => {
+                if (!(err instanceof Problem) || err.code !== 'noGas' || asset.contract !== NET.tron.usdt) throw err;
+                return prepareTronless(wallet, asset, recipient, units);
+              })
             : viaRelay && !byGas
               ? await prepareGasless(recipient, units)
               : await prepareEvm(wallet, asset, recipient, units);
@@ -741,9 +780,9 @@ function Send({
   }
 
   if (step === 'done' && prepared) {
-    const explorer = prepared.kind === 'btc' ? NET.btc.explorerTx : prepared.kind === 'tron' ? NET.tron.explorerTx : evmOf(prepared.asset).explorerTx;
+    const explorer = prepared.kind === 'btc' ? NET.btc.explorerTx : prepared.kind === 'tron' || prepared.kind === 'tronless' ? NET.tron.explorerTx : evmOf(prepared.asset).explorerTx;
     const a = prepared.asset;
-    const feeAsset = prepared.kind === 'gasless' ? a : feeAssetOf(a);
+    const feeAsset = prepared.kind === 'gasless' || prepared.kind === 'tronless' ? a : feeAssetOf(a);
     return (
       <section class="panel">
         <h2 class="title">{t.sentTitle}</h2>
@@ -762,7 +801,7 @@ function Send({
           </dd>
           <dt>{t.pay.code}</dt>
           <dd>{addressCode(prepared.to)}</dd>
-          <dt>{prepared.kind === 'tron' ? t.feeUpTo : prepared.kind === 'gasless' ? t.gasless.feeLabel : t.fee}</dt>
+          <dt>{prepared.kind === 'tron' ? t.feeUpTo : prepared.kind === 'gasless' || prepared.kind === 'tronless' ? t.gasless.feeLabel : t.fee}</dt>
           <dd>
             {amountText(feeAsset, prepared.fee)} {feeAsset.ticker}
             <span class="dim">{usd(feeAsset, prepared.fee)}</span>
@@ -790,7 +829,7 @@ function Send({
   if (step === 'review' && prepared) {
     const a = prepared.asset;
     // Tokens are paid for in two currencies: the token itself and the network's coin for the fee.
-    const feeAsset = prepared.kind === 'gasless' ? a : feeAssetOf(a);
+    const feeAsset = prepared.kind === 'gasless' || prepared.kind === 'tronless' ? a : feeAssetOf(a);
     const sameCoin = feeAsset.id === a.id;
     return (
       <section class="panel">
@@ -811,7 +850,7 @@ function Send({
             {amountText(a, prepared.amount)} {a.ticker} <span class="dim">{a.net}</span>
             <span class="dim">{usd(a, prepared.amount)}</span>
           </dd>
-          <dt>{prepared.kind === 'tron' ? t.feeUpTo : prepared.kind === 'gasless' ? t.gasless.feeLabel : t.fee}</dt>
+          <dt>{prepared.kind === 'tron' ? t.feeUpTo : prepared.kind === 'gasless' || prepared.kind === 'tronless' ? t.gasless.feeLabel : t.fee}</dt>
           <dd>
             {amountText(feeAsset, prepared.fee)} {feeAsset.ticker}
             <span class="dim">{usd(feeAsset, prepared.fee)}</span>
@@ -834,6 +873,7 @@ function Send({
           </dd>
         </dl>
         {prepared.kind === 'tron' && prepared.activates && <p class="note">{t.tronNewAddress}</p>}
+        {prepared.kind === 'tronless' && <p class="note">{t.tronless.note}</p>}
         {prepared.kind === 'gasless' && (
           <p class="note">
             {prepared.plan.via && `${t.gasless.gathered.replace('{n}', String(prepared.plan.sources.length))} `}

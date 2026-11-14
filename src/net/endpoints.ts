@@ -245,6 +245,29 @@ export const GASLESS = {
 } as const;
 
 /**
+ * USDT on Tron without TRX (see src/core/trongas.ts and server/tron-core.ts). The service rents the
+ * network's energy onto the sender's address and sends the two transfers the wallet has signed.
+ * `receiver` is where the fee goes: the owner's own Tron address, which should hold some USDT
+ * already (paying to an address with none costs twice the energy).
+ */
+export const TRON_GASLESS = {
+  path: '/relay/tron',
+  /** The service's own part of the fee: 1.5 USDT, set by the owner on 2026-11-14. */
+  service: 1_500_000n,
+  /** The owner's Tron address, given by the owner on 2026-11-14; it holds USDT. */
+  receiver: 'TMkkPBi7UcHb3SGTpxqTFFKF52e4cm95Vo',
+  /** The pocket refuses a quote above this (15 USDT): the service is wrong or the network is on fire. */
+  maxFee: 15_000_000n,
+  /** The most TRX a relayed transfer may burn if something goes wrong: 30 TRX. With rented energy it burns none. */
+  feeLimit: 30_000_000n,
+  /** How long the signed transfers stay good, in milliseconds: time for the energy to arrive. */
+  lifetime: 600_000,
+} as const;
+
+/** Tron addresses under sanctions, one per line: the list the Tron side of the service refuses to serve. */
+export const TRON_BLOCKED_LIST = 'https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_TRX.txt';
+
+/**
  * Where the wallet keeps its address book between devices: me7's own store, on the same site under
  * /sync. It holds ciphertext only, under a name derived from the seed (see src/core/sync.ts).
  */

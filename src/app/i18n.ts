@@ -179,6 +179,9 @@ const ru = {
   copy: 'копировать',
   copied: 'скопировано',
   report: { when: 'отправлено', id: 'номер в сети' },
+  tronless: {
+    note: 'На адресе нет TRX, поэтому перевод проведёт сервис me7: он оплатит сеть, а комиссия спишется в USDT вторым переводом. Отправка займёт до минуты.',
+  },
   naming: {
     title: 'имя для адреса',
     lead: 'Вместо сорока символов можно давать имя: anna.base.eth. Оно ведёт на ваш основной адрес. me7 регистрирует его в реестре сети Base на год, платите вы в USDC, ETH не нужен.',
@@ -930,6 +933,9 @@ const en: Dict = {
   copy: 'copy',
   copied: 'copied',
   report: { when: 'sent', id: 'network id' },
+  tronless: {
+    note: 'The address holds no TRX, so me7\'s service will carry the transfer: it pays the network, and the fee is taken in USDT by a second transfer. Sending takes up to a minute.',
+  },
   naming: {
     title: 'a name for the address',
     lead: 'Instead of forty characters you can give out a name: anna.base.eth. It points to your main address. me7 registers it in Base\'s registry for a year; you pay in USDC and need no ETH.',
