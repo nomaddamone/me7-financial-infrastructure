@@ -68,9 +68,9 @@ export const HUB: Page = {
     slug: '',
     title: 'me7 — self-custody crypto wallet in your browser',
     description:
-      'A web wallet where the keys never leave your browser. Send USDC on Base without ETH, hide your key inside a photo, rotate addresses, cash out P2P. Source code is public.',
+      'A web wallet where the keys never leave your browser. USDC on Base without ETH, USDT on Tron without TRX, a key hidden in a photo, rotating addresses. Source code is public.',
     h1: 'A crypto wallet where the keys stay with you',
-    lead: 'me7 is a self-custody wallet that runs in your browser. No sign-up, no email, no identity check: you create a key, and only you hold it. It sends USDC without ETH for gas, hides your balance behind rotating addresses, and publishes its code so you do not have to take our word for anything.',
+    lead: 'me7 is a self-custody wallet that runs in your browser. No sign-up, no email, no identity check: you create a key, and only you hold it. It sends USDC without ETH and USDT without TRX, hides your balance behind rotating addresses, and publishes its code so you do not have to take our word for anything.',
     card: '',
     sections: [
       {
@@ -78,9 +78,12 @@ export const HUB: Page = {
         list: [
           'Nothing to install and nothing to register. Open the site, create a key, and the wallet is ready in a minute.',
           'You never need ETH to move USDC on Base. me7 pays the network gas; you pay one plain fee, about 1 USDC per operation, shown before you confirm.',
+          'The same goes for USDT on Tron: no TRX needed. me7 pays the network, and the fee is taken in USDT, shown before you confirm.',
           'Your key is a file and a password, not twelve words on a slip of paper. The file can hide inside your own photo, PDF or song.',
           'A payer sees their own transfer, not your whole balance: the wallet hands out a new address after every payment received.',
           'Under pressure you can open a second, empty vault with a different password.',
+          'A transfer is hard to send to the wrong place: an eight-digit address code to compare with the recipient, ten seconds to cancel after you confirm, and a receipt once it is sent.',
+          'You can pay to a name such as anna.base.eth instead of forty characters, and take a name for your own address.',
           'The code is public, and one command checks that the site serves exactly that code.',
         ],
       },
@@ -88,7 +91,7 @@ export const HUB: Page = {
         h: 'Networks and coins',
         p: [
           'Base: USDC, ETH, cbBTC. Ethereum: ETH, USDT, USDC, DAI, LINK, WBTC, cbBTC. Tron: TRX and USDT. Bitcoin.',
-          'USDC on Base is the main coin of the wallet: it is the one that moves without gas and with rotating addresses.',
+          'USDC on Base is the main coin of the wallet: it moves without ETH and with rotating addresses. USDT on Tron moves without TRX.',
         ],
       },
       {
@@ -109,7 +112,7 @@ export const HUB: Page = {
       },
     ],
     faq: [
-      { q: 'Is me7 free?', a: 'Creating a wallet, receiving and holding money cost nothing. Sending USDC on Base through me7 costs about 1 USDC per operation, which covers the network gas. Transfers in other networks cost only the network’s own fee.' },
+      { q: 'Is me7 free?', a: 'Creating a wallet, receiving and holding money cost nothing. Sending USDC on Base through me7 costs about 1 USDC per operation, which covers the network gas. Sending USDT on Tron from an address with no TRX costs about 3 USDT, which covers the network too. Other transfers cost only the network’s own fee.' },
       { q: 'Do I need to verify my identity?', a: 'No. There are no accounts on our side: no email, no phone number, no documents. Your account is your key.' },
       { q: 'What happens if me7 disappears?', a: 'Your money is in the blockchain under your key, not with us. The 24 recovery words open the same wallet in any other wallet that follows the common standards.' },
       { q: 'Can me7 freeze or take my money?', a: 'No. The server has no key to your wallet. It can refuse to pay gas for a transfer, for example to an address on a sanctions list, but it cannot move or hold what is yours.' },
@@ -120,9 +123,9 @@ export const HUB: Page = {
     slug: '',
     title: 'me7 — некастодиальный криптокошелёк в браузере',
     description:
-      'Веб-кошелёк, где ключи не покидают ваш браузер. USDC в сети Base без ETH, ключ внутри фотографии, ротация адресов, вывод через P2P. Исходный код открыт.',
+      'Веб-кошелёк, где ключи не покидают ваш браузер. USDC в сети Base без ETH, USDT в сети Tron без TRX, ключ внутри фотографии, ротация адресов. Исходный код открыт.',
     h1: 'Криптокошелёк, где ключи остаются у вас',
-    lead: 'me7 — некастодиальный кошелёк, который работает прямо в браузере. Без регистрации, почты и проверки личности: вы создаёте ключ, и он есть только у вас. Кошелёк отправляет USDC без ETH на газ, прячет баланс за сменяемыми адресами и публикует свой код, чтобы вам не приходилось верить нам на слово.',
+    lead: 'me7 — некастодиальный кошелёк, который работает прямо в браузере. Без регистрации, почты и проверки личности: вы создаёте ключ, и он есть только у вас. Кошелёк отправляет USDC без ETH и USDT без TRX, прячет баланс за сменяемыми адресами и публикует свой код, чтобы вам не приходилось верить нам на слово.',
     card: '',
     sections: [
       {
@@ -130,9 +133,12 @@ export const HUB: Page = {
         list: [
           'Ничего не нужно устанавливать и нигде регистрироваться. Открыли сайт, создали ключ, и через минуту кошелёк готов.',
           'Чтобы перевести USDC в сети Base, не нужен ETH. Газ сети оплачивает me7, а вы платите одну понятную комиссию, около 1 USDC за операцию, и видите её до подтверждения.',
+          'То же с USDT в сети Tron: TRX не нужны. Сеть оплачивает me7, а комиссия берётся в USDT, и её видно до подтверждения.',
           'Ключ — это файл и пароль, а не двенадцать слов на бумажке. Файл можно спрятать в своей фотографии, PDF или песне.',
           'Плательщик видит только свой перевод, а не весь ваш баланс: после каждого поступления кошелёк выдаёт новый адрес.',
           'Под давлением можно открыть второй, пустой сейф другим паролем.',
+          'Перевод трудно отправить не туда: восьмизначный код адреса для сверки с получателем, десять секунд на отмену после подтверждения и отчёт после отправки.',
+          'Платить можно на имя вроде anna.base.eth вместо сорока символов, а для своего адреса взять собственное имя.',
           'Код открыт, и одна команда проверяет, что сайт отдаёт именно его.',
         ],
       },
@@ -140,7 +146,7 @@ export const HUB: Page = {
         h: 'Сети и монеты',
         p: [
           'Base: USDC, ETH, cbBTC. Ethereum: ETH, USDT, USDC, DAI, LINK, WBTC, cbBTC. Tron: TRX и USDT. Bitcoin.',
-          'USDC в сети Base — главная монета кошелька: именно она ходит без газа и со сменой адресов.',
+          'USDC в сети Base — главная монета кошелька: она ходит без ETH и со сменой адресов. USDT в сети Tron ходит без TRX.',
         ],
       },
       {
@@ -161,7 +167,7 @@ export const HUB: Page = {
       },
     ],
     faq: [
-      { q: 'me7 бесплатный?', a: 'Создать кошелёк, получать и хранить деньги можно бесплатно. Отправка USDC в сети Base через me7 стоит около 1 USDC за операцию, в эту сумму входит газ сети. Переводы в других сетях стоят только комиссию самой сети.' },
+      { q: 'me7 бесплатный?', a: 'Создать кошелёк, получать и хранить деньги можно бесплатно. Отправка USDC в сети Base через me7 стоит около 1 USDC за операцию, в эту сумму входит газ сети. Отправка USDT в сети Tron с адреса без TRX стоит около 3 USDT, сеть тоже входит в эту сумму. Остальные переводы стоят только комиссию самой сети.' },
       { q: 'Нужно ли подтверждать личность?', a: 'Нет. У нас нет учётных записей: ни почты, ни телефона, ни документов. Ваш аккаунт — это ваш ключ.' },
       { q: 'Что будет, если me7 исчезнет?', a: 'Ваши деньги лежат в блокчейне под вашим ключом, а не у нас. 24 слова восстановления откроют тот же кошелёк в любом другом кошельке, который следует общим стандартам.' },
       { q: 'Может ли me7 заморозить или забрать мои деньги?', a: 'Нет. У сервера нет ключа от вашего кошелька. Он может отказаться оплачивать газ за перевод, например на адрес из санкционного списка, но распоряжаться вашими деньгами или удерживать их не может.' },
@@ -208,7 +214,7 @@ export const PAGES: Page[] = [
         {
           h: 'What to keep in mind',
           list: [
-            'This works for USDC on the Base network. ETH and other tokens move the usual way, with the network’s own fee.',
+            'This works for USDC on the Base network. USDT on Tron moves without TRX in a similar way. ETH and other tokens move the usual way, with the network’s own fee.',
             'Every address in an operation is checked against sanctions lists and a database of scam addresses. me7 does not pay gas for transfers to or from such addresses.',
             'If me7’s service is ever unavailable, the wallet has an emergency exit: USDC on your main address can be sent the ordinary way, with gas in ETH.',
           ],
@@ -255,7 +261,7 @@ export const PAGES: Page[] = [
         {
           h: 'Что стоит знать',
           list: [
-            'Так работает USDC в сети Base. ETH и другие токены отправляются обычным способом, с комиссией самой сети.',
+            'Так работает USDC в сети Base. USDT в сети Tron похожим образом ходит без TRX. ETH и другие токены отправляются обычным способом, с комиссией самой сети.',
             'Каждый адрес в операции сверяется с санкционными списками и базой мошеннических адресов. Газ за переводы на такие адреса и с них me7 не оплачивает.',
             'Если сервис me7 окажется недоступен, в кошельке есть аварийный выход: USDC с основного адреса можно отправить обычным способом, с газом в ETH.',
           ],
@@ -265,6 +271,109 @@ export const PAGES: Page[] = [
         { q: 'Почему есть комиссия, если нет газа?', a: 'Газ есть, просто его платит me7 вместо вас. Комиссия покрывает этот расход и работу сервиса. Вы видите одну сумму в USDC и не держите вторую монету ради газа.' },
         { q: 'Может ли me7 взять больше комиссии?', a: 'Нет. Комиссия — это отдельное разрешение на точную сумму, которое вы подписываете сами. Взять больше подписанного невозможно.' },
         { q: 'Нужен ли получателю me7?', a: 'Нет. Он получает обычные USDC в сети Base на обычный адрес, в любой кошелёк или на биржу.' },
+      ],
+    },
+  },
+  {
+    id: 'tronless',
+    en: {
+      slug: 'usdt-without-trx',
+      title: 'Send USDT (TRC-20) on Tron without TRX — me7',
+      description: 'USDT on Tron but no TRX for the fee? me7 pays the network for you and takes one fee in USDT, shown before you confirm. No TRX to buy, no energy to rent, no sign-up.',
+      h1: 'Send USDT on Tron without TRX',
+      lead: 'USDT arrives on your Tron address, you try to send it on, and the wallet asks for TRX you do not have. In me7 you do not need it. You sign the transfer with your own key; me7 pays the network, and the fee comes out of the same USDT.',
+      card: 'Send USDT (TRC-20) with no TRX on the address. The fee is taken in USDT.',
+      sections: [
+        {
+          h: 'How it works',
+          p: [
+            'A USDT transfer on Tron spends energy, and an address with no energy and no TRX cannot move at all. me7’s service rents the energy onto your address for the minutes the transfer needs, adds the little TRX the network wants for the bytes, and only then sends your transfer.',
+            'Your browser signs two transfers with your key: the payment to your recipient and the fee to me7. The service cannot change the recipient or either amount: a changed transfer no longer matches your signature and the network rejects it. It can only deliver what you signed, or not deliver it.',
+          ],
+        },
+        {
+          h: 'What it costs',
+          list: [
+            'me7’s own expense on energy and TRX, plus 1.5 USDT per transfer. Usually that comes to about 3 USDT.',
+            'The exact fee is on the screen before you confirm. It is taken in USDT on top of the amount, so the recipient gets exactly what you entered.',
+            'It is close to what the network itself would burn in TRX for the same transfer, only you never have to buy TRX or keep it in reserve.',
+            'If your address does hold enough TRX, the wallet pays the network the ordinary way and me7 takes nothing.',
+          ],
+        },
+        {
+          h: 'How to do it',
+          steps: [
+            'Open me7.network and create a wallet, or sign in with your key file.',
+            'Receive USDT on Tron (TRC-20) to the address the wallet shows.',
+            'Press send, choose USDT on Tron, enter the address and the amount.',
+            'Check the fee and confirm with your password. The transfer takes up to a minute.',
+          ],
+        },
+        {
+          h: 'What to keep in mind',
+          list: [
+            'This works for USDT on the Tron network. It also works from a brand-new address that has never been activated.',
+            'Addresses are checked against a sanctions list. me7 does not carry transfers to or from such addresses.',
+            'After you confirm there are ten seconds to cancel. Once the transfer is in the network it cannot be taken back.',
+            'With a Ledger, USDT on Tron is sent the ordinary way, with the fee in TRX.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Do I need any TRX at all?', a: 'No. An address with USDT and zero TRX is enough. me7 rents the energy and adds the TRX the network asks for.' },
+        { q: 'Can me7 take more than the fee shown?', a: 'No. The fee is a separate transfer for an exact amount that you sign yourself. Nothing moves beyond the two transfers you signed.' },
+        { q: 'Why is the fee higher when the recipient has never held USDT?', a: 'The network itself charges about twice the energy for the first USDT an address receives. The wallet shows the fee for your exact transfer before you confirm.' },
+        { q: 'Does the recipient need me7?', a: 'No. They receive ordinary USDT (TRC-20) at an ordinary Tron address, in any wallet or on an exchange.' },
+      ],
+    },
+    ru: {
+      slug: 'usdt-bez-trx',
+      title: 'Отправить USDT (TRC-20) в сети Tron без TRX — me7',
+      description: 'Есть USDT в сети Tron, но нет TRX на комиссию? В me7 сеть оплачивает сервис, а одна комиссия берётся в USDT и видна до подтверждения. Без покупки TRX и регистрации.',
+      h1: 'Как отправить USDT в сети Tron без TRX',
+      lead: 'USDT пришли на ваш адрес в сети Tron, вы хотите отправить их дальше, а кошелёк требует TRX, которых нет. В me7 они не нужны. Вы подписываете перевод своим ключом, сеть оплачивает me7, а комиссия берётся из тех же USDT.',
+      card: 'Перевод USDT (TRC-20) без TRX на адресе. Комиссия берётся в USDT.',
+      sections: [
+        {
+          h: 'Как это работает',
+          p: [
+            'Перевод USDT в сети Tron расходует энергию, и адрес без энергии и без TRX не может отправить ничего. Сервис me7 арендует энергию на ваш адрес на те минуты, что нужны для перевода, добавляет немного TRX, которые сеть берёт за байты, и только после этого отправляет ваш перевод.',
+            'Ваш браузер подписывает вашим ключом два перевода: платёж получателю и комиссию me7. Изменить получателя или любую из сумм сервис не может: изменённый перевод перестаёт соответствовать подписи, и сеть его отклонит. Сервис может только доставить подписанное вами или не доставить.',
+          ],
+        },
+        {
+          h: 'Сколько это стоит',
+          list: [
+            'Расход me7 на энергию и TRX плюс 1,5 USDT за перевод. Обычно выходит около 3 USDT.',
+            'Точная комиссия видна на экране до подтверждения. Она списывается в USDT сверх суммы, поэтому получателю приходит ровно столько, сколько вы ввели.',
+            'Это близко к тому, что сеть сама сожгла бы в TRX за такой же перевод, только покупать TRX и держать их про запас вам не нужно.',
+            'Если TRX на адресе хватает, кошелёк платит сети обычным способом, и me7 ничего не берёт.',
+          ],
+        },
+        {
+          h: 'Как это сделать',
+          steps: [
+            'Откройте me7.network и создайте кошелёк или войдите по файлу-ключу.',
+            'Получите USDT в сети Tron (TRC-20) на адрес, который покажет кошелёк.',
+            'Нажмите «отправить», выберите USDT в сети Tron, введите адрес и сумму.',
+            'Проверьте комиссию и подтвердите паролем. Перевод занимает до минуты.',
+          ],
+        },
+        {
+          h: 'Что стоит знать',
+          list: [
+            'Так работает USDT в сети Tron. Работает и с совсем нового адреса, который ещё не активирован.',
+            'Адреса сверяются с санкционным списком. Переводы на такие адреса и с них me7 не проводит.',
+            'После подтверждения есть десять секунд на отмену. Когда перевод ушёл в сеть, вернуть его нельзя.',
+            'С Ledger USDT в сети Tron отправляется обычным способом, с комиссией в TRX.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Нужны ли мне вообще TRX?', a: 'Нет. Достаточно адреса, на котором есть USDT и ноль TRX. me7 арендует энергию и добавляет TRX, которые просит сеть.' },
+        { q: 'Может ли me7 взять больше показанной комиссии?', a: 'Нет. Комиссия — это отдельный перевод на точную сумму, который вы подписываете сами. Кроме двух подписанных вами переводов ничего не уйдёт.' },
+        { q: 'Почему комиссия выше, если получатель ещё не держал USDT?', a: 'Сама сеть берёт примерно вдвое больше энергии за первые USDT, которые приходят на адрес. Кошелёк показывает комиссию именно для вашего перевода до подтверждения.' },
+        { q: 'Нужен ли получателю me7?', a: 'Нет. Он получает обычные USDT (TRC-20) на обычный адрес сети Tron, в любой кошелёк или на биржу.' },
       ],
     },
   },
@@ -838,6 +947,174 @@ export const PAGES: Page[] = [
         { q: 'Какие монеты можно так отправлять?', a: 'USDC в сети Base уходят всем одной операцией. Другие монеты тоже можно разослать по списку, но отдельными переводами один за другим, каждый со своей комиссией сети. Биткоин в рассылку не входит.' },
         { q: 'Видят ли получатели друг друга?', a: 'Переводы идут одной транзакцией в публичном блокчейне, поэтому тот, кто её откроет, увидит все адреса и суммы в ней. Где это важно, платите отдельно.' },
         { q: 'Есть ли предел числа получателей?', a: 'Одна операция вмещает несколько десятков переводов.' },
+      ],
+    },
+  },
+  {
+    id: 'names',
+    en: {
+      slug: 'wallet-name',
+      title: 'A name instead of a wallet address: send by name — me7',
+      description: 'In me7 you can pay to a name like anna.base.eth instead of forty characters, and get such a name for your own address. Paid in USDC, no ETH needed.',
+      h1: 'A name instead of forty characters',
+      lead: 'A wallet address is forty characters nobody can remember or read aloud. In me7 you can send to a name such as anna.base.eth, and take a name for your own address without leaving the wallet.',
+      card: 'Pay to anna.base.eth instead of an address, and get a name of your own.',
+      sections: [
+        {
+          h: 'Sending to a name',
+          p: [
+            'Type a name ending in .base.eth or .eth into the recipient field. The wallet looks it up in the public registry in the blockchain and shows the address it points to, with that address’s code, before you confirm.',
+            'The name is only a way to find the address. The transfer itself goes to the address you saw on the screen.',
+          ],
+        },
+        {
+          h: 'A name of your own',
+          list: [
+            'On the receive screen you can pick a free name and register it in the Base network’s registry for a year. It points to your main address.',
+            'You pay in USDC: the registry’s price and the gas, plus 0.5 USDC. No ETH is needed. Longer names cost the registry a few cents a year; short ones cost more.',
+            'A name is three characters or more: small Latin letters, digits and a hyphen inside.',
+            'The name then shows at the top of your wallet, and one tap copies it.',
+          ],
+        },
+        {
+          h: 'What to keep in mind',
+          list: [
+            'A name is public. Anyone who knows it sees the address behind it and that address’s history, so give it to those you would give the address to.',
+            'The name leads to the main address of the wallet. Rotating addresses for USDC keep working beside it.',
+            'The name lives in the registry of the Base network, not with me7: it stays yours with your key, and other wallets that read this registry understand it too.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Which names can I send to?', a: 'Names ending in .base.eth and .eth. If a name is not registered or has no address attached, the wallet says so and sends nothing.' },
+        { q: 'Does the payer need me7 to pay to my name?', a: 'No. Any wallet that understands such names will find your address by it.' },
+        { q: 'What happens after a year?', a: 'The registration runs for a year and can be extended in the registry of the Base network.' },
+      ],
+    },
+    ru: {
+      slug: 'imya-koshelka',
+      title: 'Имя вместо адреса кошелька: перевод по имени — me7',
+      description: 'В me7 можно платить на имя вроде anna.base.eth вместо сорока символов и получить такое имя для своего адреса. Оплата в USDC, ETH не нужен.',
+      h1: 'Имя вместо сорока символов',
+      lead: 'Адрес кошелька — это сорок символов, которые не запомнить и не продиктовать. В me7 можно отправить деньги на имя вроде anna.base.eth и взять имя для своего адреса, не выходя из кошелька.',
+      card: 'Платите на anna.base.eth вместо адреса и получите своё имя.',
+      sections: [
+        {
+          h: 'Перевод по имени',
+          p: [
+            'Введите в поле получателя имя, которое заканчивается на .base.eth или .eth. Кошелёк найдёт его в открытом реестре в блокчейне и до подтверждения покажет адрес, на который оно ведёт, вместе с кодом этого адреса.',
+            'Имя — только способ найти адрес. Сам перевод уходит на адрес, который вы увидели на экране.',
+          ],
+        },
+        {
+          h: 'Своё имя',
+          list: [
+            'На экране получения можно выбрать свободное имя и зарегистрировать его в реестре сети Base на год. Оно ведёт на ваш основной адрес.',
+            'Платите в USDC: цена реестра и газ плюс 0,5 USDC. ETH не нужен. Длинные имена стоят в реестре несколько центов в год, короткие дороже.',
+            'Имя — от трёх символов: строчные латинские буквы, цифры и дефис внутри.',
+            'После этого имя показывается вверху кошелька и копируется одним нажатием.',
+          ],
+        },
+        {
+          h: 'Что стоит знать',
+          list: [
+            'Имя публично. Кто его знает, видит адрес за ним и историю этого адреса, поэтому давайте его тем, кому дали бы и сам адрес.',
+            'Имя ведёт на основной адрес кошелька. Сменяемые адреса для USDC продолжают работать рядом с ним.',
+            'Имя записано в реестре сети Base, а не у me7: оно остаётся вашим вместе с ключом, и его понимают другие кошельки, которые читают этот реестр.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'На какие имена можно отправлять?', a: 'На имена, которые заканчиваются на .base.eth и .eth. Если имя не зарегистрировано или к нему не привязан адрес, кошелёк скажет об этом и ничего не отправит.' },
+        { q: 'Нужен ли плательщику me7, чтобы заплатить на моё имя?', a: 'Нет. Ваш адрес по имени найдёт любой кошелёк, который понимает такие имена.' },
+        { q: 'Что будет через год?', a: 'Регистрация действует год, её можно продлить в реестре сети Base.' },
+      ],
+    },
+  },
+  {
+    id: 'safesend',
+    en: {
+      slug: 'safe-transfer',
+      title: 'Address code, 10 seconds to cancel, a receipt — me7',
+      description: 'me7 guards a transfer from a swapped or mistyped address: an eight-digit address code to compare, ten seconds to cancel after confirming, and a receipt once it is sent.',
+      h1: 'A transfer that is hard to send to the wrong place',
+      lead: 'A crypto transfer cannot be taken back, and the usual way to lose money is a wrong address: mistyped, or quietly replaced in the clipboard. me7 puts three plain checks between you and that mistake.',
+      card: 'An address code to compare, ten seconds to cancel, a receipt after sending.',
+      sections: [
+        {
+          h: 'The address code',
+          p: [
+            'Every address has a short code in me7: eight digits and a small pattern, computed from the address itself. The recipient sees it on their receive screen; you see it under the recipient field, however the address got there: typed, pasted or scanned.',
+            'Ask the recipient to read their eight digits. If they match yours, the address is theirs. Comparing eight digits by voice or in a message takes seconds; comparing forty characters nobody really does.',
+          ],
+        },
+        {
+          h: 'Ten seconds to cancel',
+          p: [
+            'After you confirm a transfer, me7 waits ten seconds before sending anything to the network. During the count one button cancels it, for free and without a trace. Sure of it? Another button sends at once.',
+          ],
+        },
+        {
+          h: 'A receipt after sending',
+          p: [
+            'When the transfer is sent, the wallet shows what went: the amount, the recipient, the fee, the time and the transfer’s number in the network, which opens it in a public explorer.',
+          ],
+        },
+        {
+          h: 'What else stands guard',
+          list: [
+            'Before USDC is sent, every address is checked against lists of scam and sanctioned addresses.',
+            'The scanner acts only on addresses and payment links; a code with anything else in it is not followed.',
+            'With a Ledger, the address and the amount are read on the device’s own screen.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Does the address code work only with a QR code?', a: 'No. The code is computed from the address, so it shows for any address in the recipient field: typed, pasted, scanned or found by name.' },
+        { q: 'Can I cancel a transfer after the ten seconds?', a: 'No. Once a transfer is in the network, nobody can take it back: not you, not me7. The ten seconds are the last moment to change your mind.' },
+        { q: 'Does the recipient need me7 to tell me the code?', a: 'The code is shown by me7, on the receive screen. If the recipient uses another wallet, compare the address itself the way you usually do; the ten seconds and the receipt work all the same.' },
+      ],
+    },
+    ru: {
+      slug: 'zaschita-perevoda',
+      title: 'Код адреса, 10 секунд на отмену и отчёт о переводе — me7',
+      description: 'me7 защищает перевод от подменённого или ошибочного адреса: восьмизначный код адреса для сверки, десять секунд на отмену после подтверждения и отчёт после отправки.',
+      h1: 'Перевод, который трудно отправить не туда',
+      lead: 'Перевод в криптовалюте нельзя вернуть, а чаще всего деньги теряют из-за неверного адреса: с опечаткой или тихо подменённого в буфере обмена. me7 ставит между вами и такой ошибкой три простые проверки.',
+      card: 'Код адреса для сверки, десять секунд на отмену, отчёт после отправки.',
+      sections: [
+        {
+          h: 'Код адреса',
+          p: [
+            'У каждого адреса в me7 есть короткий код: восемь цифр и маленький узор, вычисленные из самого адреса. Получатель видит его на экране получения, а вы под полем получателя, каким бы путём адрес туда ни попал: набран, вставлен или отсканирован.',
+            'Попросите получателя назвать свои восемь цифр. Совпали с вашими — адрес его. Сверить восемь цифр голосом или в переписке можно за секунды, а сорок символов на деле не сверяет никто.',
+          ],
+        },
+        {
+          h: 'Десять секунд на отмену',
+          p: [
+            'После подтверждения me7 ждёт десять секунд и только потом отправляет перевод в сеть. Пока идёт отсчёт, одна кнопка отменяет его, бесплатно и без следа. Уверены? Другая кнопка отправит сразу.',
+          ],
+        },
+        {
+          h: 'Отчёт после отправки',
+          p: [
+            'Когда перевод отправлен, кошелёк показывает, что ушло: сумму, получателя, комиссию, время и номер перевода в сети, по которому он открывается в публичном обозревателе.',
+          ],
+        },
+        {
+          h: 'Что ещё стоит на страже',
+          list: [
+            'Перед отправкой USDC каждый адрес сверяется со списками мошеннических и санкционных адресов.',
+            'Сканер исполняет только адреса и платёжные ссылки; код с чем-либо другим внутри он не открывает.',
+            'С Ledger адрес и сумма читаются на экране самого устройства.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Код адреса работает только с QR-кодом?', a: 'Нет. Код вычисляется из адреса, поэтому показывается для любого адреса в поле получателя: набранного, вставленного, отсканированного или найденного по имени.' },
+        { q: 'Можно ли отменить перевод после десяти секунд?', a: 'Нет. Когда перевод ушёл в сеть, вернуть его не может никто: ни вы, ни me7. Десять секунд — последний момент, чтобы передумать.' },
+        { q: 'Нужен ли получателю me7, чтобы назвать код?', a: 'Код показывает me7 на экране получения. Если у получателя другой кошелёк, сверьте сам адрес так, как делаете обычно; десять секунд и отчёт работают в любом случае.' },
       ],
     },
   },

@@ -27,6 +27,7 @@ The only official address of me7 is **https://me7.network**. Anything else that 
 | **The key inside a file** | The account is a file and a password. The key can hide inside your own photo, PDF or song; the file still opens as usual. |
 | **The vault** | A vault password is not compared with a stored one. It is turned by mathematics into a separate wallet. Another password opens another, empty vault. |
 | **USDC without ETH** | You sign a USDC transfer on Base with your own key and me7 covers the network gas. One plain fee, shown before you confirm. |
+| **USDT without TRX** | A USDT transfer on Tron from an address with no TRX: me7 pays the network, the fee is taken in USDT and shown before you confirm. |
 | **Address rotation** | After every payment received the wallet hands out a new address. A payer sees their own transfer, not your whole balance. |
 | **Address selection** | Money sits on several addresses, like coins in a Bitcoin wallet. A payment takes as many as it needs and leaves the rest untouched. |
 | **Transit address** | Money is gathered on a fresh one-time address and leaves from there, in one operation. |
@@ -35,6 +36,8 @@ The only official address of me7 is **https://me7.network**. Anything else that 
 | **Encrypted contacts** | The address book is encrypted in the browser with a key from your phrase before it goes anywhere. |
 | **Address screening** | Before USDC is sent, every address is checked against scam and sanctions lists. |
 | **Batch payment** | Several recipients in one operation: all of them are paid or none is. |
+| **Names** | Sending to a name such as anna.base.eth, and a name of your own for the main address, paid in USDC. |
+| **Ten seconds to cancel** | After you confirm, a transfer waits ten seconds and can be cancelled; once sent, a receipt is shown. |
 | **Branded QR and scanner** | A receiving code with an eight-digit address code to compare by eye or by voice; a scanner that acts only on addresses and payment links. |
 
 Networks and coins: Base (USDC, ETH, cbBTC), Ethereum (ETH, USDT, USDC, DAI, LINK, WBTC), Tron (TRX, USDT), Bitcoin.

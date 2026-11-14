@@ -1046,7 +1046,7 @@ function Send({
           )}
         </>
       ) : (
-        isToken && <p class="note">{t.tokenFeeNote}</p>
+        isToken && <p class="note">{asset.contract === NET.tron.usdt ? t.tronless.hint : t.tokenFeeNote}</p>
       )}
       {error && (
         <p class="alert" role="alert">

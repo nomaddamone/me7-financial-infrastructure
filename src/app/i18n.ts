@@ -61,7 +61,7 @@ const ru = {
         ],
       },
       {
-        title: 'переводы нельзя отменить',
+        title: 'переводы нельзя развернуть',
         items: [
           'Отправленный перевод нельзя вернуть, остановить или оспорить. Здесь нет банка, который отменит операцию.',
           '«Я перевёл мошеннику, верните деньги» здесь не сработает. Вернуть их не можем ни мы, ни кто-либо другой.',
@@ -73,7 +73,8 @@ const ru = {
         items: [
           'Сервер me7 не хранит ни ваш ключ, ни ваши деньги и не может ими распоряжаться. Деньги лежат в блокчейне под вашим ключом.',
           'Перевод USDC в сети Base вы подписываете своим ключом, а газ за него оплачивает сервис me7: он проводит уже подписанный перевод в сети как есть. Изменить получателя или сумму он не может. ETH для таких переводов не нужен.',
-          'Перед оплатой газа сервис сверяет каждый адрес с санкционными списками и базой мошеннических адресов. Переводы на такие адреса и с них он не оплачивает.',
+          'Перевод USDT в сети Tron с адреса, на котором нет TRX, вы тоже подписываете своим ключом: платёж получателю и комиссию. Сервис me7 арендует энергию на ваш адрес, добавляет TRX, которые берёт сеть, и проводит оба подписанных перевода как есть. Изменить получателя или сумму он не может. TRX для таких переводов не нужны.',
+          'Перед оплатой сети сервис сверяет адреса с санкционными списками, а для USDC ещё и с базой мошеннических адресов. Переводы на такие адреса и с них он не оплачивает.',
         ],
       },
       {
@@ -89,6 +90,8 @@ const ru = {
         items: [
           'Отправка USDC в сети Base: расход на газ плюс 1 USDC за операцию, с какого бы числа ваших адресов она ни шла. Точная сумма видна до подтверждения.',
           'Обмен: 0,5% от суммы, уже учтены в курсе, который вы видите.',
+          'Отправка USDT в сети Tron с адреса, на котором нет TRX: расход me7 на энергию и TRX плюс 1,5 USDT за перевод. Если TRX на адресе хватает, сети вы платите сами, и me7 ничего не берёт.',
+          'Имя для адреса: цена реестра сети Base и газ плюс 0,5 USDC.',
           'Остальные переводы: только комиссия самой сети, me7 ничего не берёт.',
         ],
       },
@@ -181,6 +184,7 @@ const ru = {
   report: { when: 'отправлено', id: 'номер в сети' },
   tronless: {
     note: 'На адресе нет TRX, поэтому перевод проведёт сервис me7: он оплатит сеть, а комиссия спишется в USDT вторым переводом. Отправка займёт до минуты.',
+    hint: 'Если на адресе хватает TRX, комиссию сети вы платите сами. Если TRX нет, перевод проведёт сервис me7, а комиссия спишется в USDT: её видно на следующем шаге.',
     unavailable: 'На адресе нет TRX, а сервис me7, который проводит такие переводы, сейчас не ответил. Попробуйте через несколько минут или пополните адрес на несколько TRX.',
   },
   naming: {
@@ -418,7 +422,7 @@ const ru = {
   dust: 'Сумма слишком мала для сети Bitcoin.',
   preparing: 'считаю комиссию',
   reviewTitle: 'проверьте перевод',
-  reviewNote: 'После отправки перевод нельзя отменить. Сверьте адрес.',
+  reviewNote: 'После отправки перевод нельзя развернуть. Сверьте адрес.',
   fee: 'комиссия сети',
   total: 'всего спишется',
   sendNow: 'отправить',
@@ -691,7 +695,7 @@ const ru = {
       {
         id: 'gasless',
         name: 'Газ платит me7',
-        text: 'Вы подписываете перевод USDC своим ключом, а сетевой газ за него оплачивает me7. ETH держать не нужно: вместо газа одна понятная комиссия, около 1 USDC за операцию. Её видно до подтверждения.',
+        text: 'Вы подписываете перевод своим ключом, а сеть за него оплачивает me7. USDC в сети Base уходит без ETH, USDT в сети Tron без TRX. Вместо газа одна понятная комиссия в той же монете, и её видно до подтверждения.',
         usual: 'без монеты сети на балансе перевод не уйдёт.',
       },
       {
@@ -816,7 +820,7 @@ const en: Dict = {
         ],
       },
       {
-        title: "transfers can't be undone",
+        title: "transfers can't be reversed",
         items: [
           "A transfer you've sent can't be reversed, stopped or disputed. There's no bank here to cancel it.",
           '"I sent money to a scammer, give it back" doesn\'t work here. Neither we nor anyone else can return it.',
@@ -828,7 +832,8 @@ const en: Dict = {
         items: [
           "me7's server holds neither your key nor your money and cannot move them. The money is on the blockchain under your key.",
           "You sign a USDC transfer on Base with your own key, and me7's service pays the gas for it: it puts the already signed transfer through on the network as it is. It cannot change the recipient or the amount. No ETH is needed for such transfers.",
-          'Before paying the gas, the service checks every address against sanctions lists and a database of scam addresses. It does not pay for transfers to or from such addresses.',
+          "A USDT transfer on Tron from an address that holds no TRX you also sign with your own key: the payment to the recipient and the fee. me7's service rents energy onto your address, adds the TRX the network charges, and puts both signed transfers through as they are. It cannot change the recipient or the amount. No TRX is needed for such transfers.",
+          'Before paying the network, the service checks the addresses against sanctions lists, and for USDC against a database of scam addresses as well. It does not pay for transfers to or from such addresses.',
         ],
       },
       {
@@ -844,6 +849,8 @@ const en: Dict = {
         items: [
           'Sending USDC on Base: the gas expense plus 1 USDC per operation, however many of your addresses it draws from. The exact sum is shown before you confirm.',
           'Swapping: 0.5% of the amount, already included in the rate you see.',
+          'Sending USDT on Tron from an address that holds no TRX: me7\'s expense on energy and TRX plus 1.5 USDT per transfer. If the address has enough TRX, you pay the network yourself and me7 takes nothing.',
+          'A name for your address: the Base registry\'s price and the gas plus 0.5 USDC.',
           'Other transfers: only the network\'s own fee; me7 takes nothing.',
         ],
       },
@@ -936,6 +943,7 @@ const en: Dict = {
   report: { when: 'sent', id: 'network id' },
   tronless: {
     note: 'The address holds no TRX, so me7\'s service will carry the transfer: it pays the network, and the fee is taken in USDT by a second transfer. Sending takes up to a minute.',
+    hint: 'If the address has enough TRX, you pay the network fee yourself. If it has none, me7\'s service carries the transfer and the fee is taken in USDT: you see it on the next step.',
     unavailable: 'The address holds no TRX, and me7\'s service, which carries such transfers, did not answer just now. Try again in a few minutes, or add a few TRX to the address.',
   },
   naming: {
@@ -1173,7 +1181,7 @@ const en: Dict = {
   dust: 'That amount is too small for the Bitcoin network.',
   preparing: 'working out the fee',
   reviewTitle: 'check the transfer',
-  reviewNote: "Once sent, a transfer can't be undone. Check the address.",
+  reviewNote: "Once sent, a transfer can't be reversed. Check the address.",
   fee: 'network fee',
   total: 'total to leave',
   sendNow: 'send',
@@ -1446,7 +1454,7 @@ const en: Dict = {
       {
         id: 'gasless',
         name: 'me7 pays the gas',
-        text: 'You sign a USDC transfer with your own key, and me7 covers the network gas for it. No ETH to hold: instead of gas there is one plain fee, about 1 USDC per operation, shown before you confirm.',
+        text: 'You sign the transfer with your own key, and me7 pays the network for it. USDC on Base goes without ETH, USDT on Tron without TRX. Instead of gas there is one plain fee in the same coin, shown before you confirm.',
         usual: "without the network's coin on the balance a transfer does not go.",
       },
       {
