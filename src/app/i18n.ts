@@ -181,6 +181,7 @@ const ru = {
   report: { when: 'отправлено', id: 'номер в сети' },
   tronless: {
     note: 'На адресе нет TRX, поэтому перевод проведёт сервис me7: он оплатит сеть, а комиссия спишется в USDT вторым переводом. Отправка займёт до минуты.',
+    unavailable: 'На адресе нет TRX, а сервис me7, который проводит такие переводы, сейчас не ответил. Попробуйте через несколько минут или пополните адрес на несколько TRX.',
   },
   naming: {
     title: 'имя для адреса',
@@ -935,6 +936,7 @@ const en: Dict = {
   report: { when: 'sent', id: 'network id' },
   tronless: {
     note: 'The address holds no TRX, so me7\'s service will carry the transfer: it pays the network, and the fee is taken in USDT by a second transfer. Sending takes up to a minute.',
+    unavailable: 'The address holds no TRX, and me7\'s service, which carries such transfers, did not answer just now. Try again in a few minutes, or add a few TRX to the address.',
   },
   naming: {
     title: 'a name for the address',

@@ -388,8 +388,8 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
 
 /** A problem the user can fix, shown as a message on the form. */
 class Problem extends Error {
-  readonly code: 'noFunds' | 'noGas' | 'noRelay' | 'tooMany';
-  constructor(code: 'noFunds' | 'noGas' | 'noRelay' | 'tooMany') {
+  readonly code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany';
+  constructor(code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany') {
     super(code);
     this.code = code;
   }
@@ -497,7 +497,8 @@ async function prepareTronless(wallet: Wallet, asset: AssetDef, recipient: strin
     return { kind: 'tronless', asset, to: recipient, amount: value, fee: first.fee, receiver: first.receiver };
   } catch (err) {
     if (err instanceof Problem) throw err;
-    throw new Problem(err instanceof RelayError && err.code === 'no-funds' ? 'noFunds' : 'noGas');
+    // The service could not be asked or would not take it: said as such, not as a lack of TRX the sender can do nothing about.
+    throw new Problem(err instanceof RelayError && err.code === 'no-funds' ? 'noFunds' : 'noTron');
   }
 }
 
@@ -687,6 +688,8 @@ function Send({
             ? t.noGas
             : code === 'noRelay'
               ? t.gasless.unavailable
+              : code === 'noTron'
+                ? t.tronless.unavailable
               : code === 'tooMany'
                 ? t.gasless.tooMany
             : code === 'dust'
