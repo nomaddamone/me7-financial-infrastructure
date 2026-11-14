@@ -118,6 +118,12 @@ export function allOrNothing(calls: readonly { to: string; data: Uint8Array }[])
   return encodeCall('aggregate3((address,bool,bytes)[])', [array(tuple(address, bool, bytes))], [items]);
 }
 
+/** The same, where some calls carry ETH: the transaction must bring exactly the sum of what the calls take. */
+export function allOrNothingWithValue(calls: readonly { to: string; value: bigint; data: Uint8Array }[]): Uint8Array {
+  const items: AbiValue[] = calls.map((c) => [c.to, false, c.value, c.data]);
+  return encodeCall('aggregate3Value((address,bool,uint256,bytes)[])', [array(tuple(address, bool, uint, bytes))], [items]);
+}
+
 /** What the pocket sends to the relay: the transfers, in the order they must happen, and the fee. */
 export interface GaslessRequest {
   chain: string;

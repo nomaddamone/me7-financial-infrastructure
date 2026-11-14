@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { NET, saveMode, SOURCE_URL } from '../net/endpoints.ts';
 import { fetchUsdPrices, type UsdPrices } from '../net/send.ts';
 import type { Dict, Lang } from './i18n.ts';
+import { useOwnName } from './ownname.ts';
 import './header.css';
 
 /**
@@ -57,6 +58,14 @@ export function Header({
     };
   }, [menu]);
   const [copied, setCopied] = useState(false);
+  // The name registered for this address, if there is one: shown in the middle, copied by a tap like the address.
+  const ownName = useOwnName(address);
+  const [nameCopied, setNameCopied] = useState(false);
+  useEffect(() => {
+    if (!nameCopied) return;
+    const id = setTimeout(() => setNameCopied(false), 1200);
+    return () => clearTimeout(id);
+  }, [nameCopied]);
   const [prices, setPrices] = useState<UsdPrices | null>(null);
   const signedIn = Boolean(address);
   useEffect(() => {
@@ -121,11 +130,32 @@ export function Header({
           </svg>
         </a>
       </span>
+      {address && ownName && (
+        <button
+          class="hd-name"
+          title={`${t.copy}: ${ownName}`}
+          onClick={() => {
+            navigator.clipboard?.writeText(ownName).then(
+              () => setNameCopied(true),
+              () => undefined,
+            );
+          }}
+        >
+          {nameCopied ? (
+            <span class="hd-name-main">{t.copied}</span>
+          ) : (
+            <>
+              <span class="hd-name-main">{ownName.replace(/\.base\.eth$/, '')}</span>
+              {ownName.endsWith('.base.eth') && <span class="hd-name-end">.base.eth</span>}
+            </>
+          )}
+        </button>
+      )}
       <span class="top-tools">
         {address ? (
           <button
             class="hd-chip"
-            title={address}
+            title={`${t.copy}: ${address}`}
             onClick={() => {
               navigator.clipboard?.writeText(address).then(
                 () => setCopied(true),

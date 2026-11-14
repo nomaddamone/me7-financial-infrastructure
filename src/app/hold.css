@@ -1,0 +1,53 @@
+/* The ten seconds before a payment leaves. */
+.hold {
+  text-align: center;
+}
+.hold-film {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+}
+.hold-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* The cancel button carries the count: a number at its right edge and a bar that runs out behind the words. */
+.hold-cancel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  overflow: hidden;
+}
+.hold-drain {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  transform-origin: left;
+  animation: hold-drain 10s linear forwards;
+}
+@keyframes hold-drain {
+  to {
+    transform: scaleX(0);
+  }
+}
+.hold-label,
+.hold-count {
+  position: relative;
+}
+.hold-count {
+  min-width: 2ch;
+  margin-left: 10px;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hold-drain {
+    animation: none;
+  }
+}
+

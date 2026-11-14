@@ -237,6 +237,11 @@ export const GASLESS = {
   maxGasPrice: 500_000_000n,
   /** The pocket refuses a quote whose gas part is above this (0.50 USDC): the relay is wrong or the network is on fire. */
   maxGasPart: 500_000n,
+  /** Issuing a name: the service's part of the fee (0.5 USDC, set by the owner on 2026-11-13) and the gas a registration takes, with room to spare (measured: about 255 thousand). */
+  nameService: 500_000n,
+  nameGas: 340_000n,
+  /** The pocket refuses a quote for a name above this (300 USDC): the service is wrong. Three-letter names cost about 0.1 ETH a year. */
+  nameMaxFee: 300_000_000n,
 } as const;
 
 /**

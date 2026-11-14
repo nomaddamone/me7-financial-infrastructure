@@ -27,6 +27,7 @@ import { ASSETS, BASE_L1_RESERVE, evmOf, feeAssetOf, type AssetDef } from './ass
 import { Spinner } from './fx.tsx';
 import { CopyButton, Qr } from './home.tsx';
 import type { Dict } from './i18n.ts';
+import { AddressCode } from './payqr.tsx';
 import { CoinIcon } from './icons.tsx';
 
 /** The app that is open on the device: a Ledger runs one at a time, and it decides which network is shown. */
@@ -402,6 +403,11 @@ function ColdSend({
         <dl class="review">
           <dt>{t.sendTo}</dt>
           <dd class="review-addr">{prepared.to}</dd>
+          <dt>{t.pay.code}</dt>
+          <dd>
+            <AddressCode t={t} address={prepared.to} />
+            <span class="dim facts-warn">{t.pay.codeCheck}</span>
+          </dd>
           <dt>{t.sendAmount}</dt>
           <dd class="review-total">
             {text(a, prepared.amount)} {a.ticker} <span class="dim">{a.net}</span>
@@ -462,6 +468,12 @@ function ColdSend({
           {t.sendTo} <span class="dim">({asset.net})</span>
         </span>
         <input class="input" type="text" autocapitalize="none" autocorrect="off" spellcheck={false} value={to} onInput={(e) => setTo(e.currentTarget.value)} />
+        {(isTron(asset) ? isValidTronAddress(to.trim()) : isValidEvmAddress(to.trim())) && (
+          <span class="name-found">
+            <AddressCode t={t} address={to.trim()} />
+            <span class="dim">{t.pay.codeAsk}</span>
+          </span>
+        )}
       </label>
       <label class="field">
         <span class="field-label">

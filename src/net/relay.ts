@@ -1,4 +1,4 @@
-import type { GaslessPricing, GaslessRequest } from '../core/gasless.ts';
+import type { GaslessPricing, GaslessRequest, SignedAuthorization } from '../core/gasless.ts';
 import { GASLESS } from './endpoints.ts';
 
 /** Why the relay did not take an operation; the codes are the relay's own (see server/relay-core.ts). */
@@ -45,6 +45,25 @@ export async function fetchRelayPricing(): Promise<GaslessPricing | null> {
 export async function relaySend(request: GaslessRequest): Promise<string> {
   const body = JSON.stringify(request, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value));
   const answer = (await ask('/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body })) as { ok?: unknown; hash?: unknown; error?: unknown } | null;
+  if (answer?.ok === true && typeof answer.hash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(answer.hash)) return answer.hash;
+  throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+}
+
+/** What a name would cost today and whether it is free. Throws when the service cannot be asked. */
+export async function fetchNameQuote(label: string): Promise<{ available: boolean; affordable: boolean; fee: bigint }> {
+  const answer = (await ask(`/name?label=${encodeURIComponent(label)}`)) as { ok?: unknown; available?: unknown; affordable?: unknown; fee?: unknown; error?: unknown } | null;
+  if (answer?.ok !== true) throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+  if (typeof answer.fee !== 'string' || !/^[0-9]{1,12}$/.test(answer.fee) || typeof answer.available !== 'boolean') throw new RelayError('down');
+  const fee = BigInt(answer.fee);
+  // A fee below the service's own part, or an absurd one, is not believed.
+  if (fee < GASLESS.nameService || fee > GASLESS.nameMaxFee) throw new RelayError('down');
+  return { available: answer.available, affordable: answer.affordable !== false, fee };
+}
+
+/** Ask the service to register the name to `owner`, paying with the signed fee. Returns the transaction's hash. */
+export async function relayIssueName(label: string, owner: string, fee: SignedAuthorization): Promise<string> {
+  const body = JSON.stringify({ chain: 'base', label, owner, fee }, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value));
+  const answer = (await ask('/name', { method: 'POST', headers: { 'content-type': 'application/json' }, body })) as { ok?: unknown; hash?: unknown; error?: unknown } | null;
   if (answer?.ok === true && typeof answer.hash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(answer.hash)) return answer.hash;
   throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
 }

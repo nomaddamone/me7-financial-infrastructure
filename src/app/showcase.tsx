@@ -10,7 +10,7 @@ import './showcase.css';
  * swipe the particles let go of one picture and gather into the next.
  */
 type C = CanvasRenderingContext2D;
-type Draw = (c: C) => void;
+export type Draw = (c: C) => void;
 
 const W = 240;
 const H = 150;
@@ -194,7 +194,14 @@ function pointsOf(draw: Draw): [number, number][] {
 const COUNT = 1500;
 const FRAME_MS = 1700;
 
-function Film({ frames }: { frames: readonly Draw[] }) {
+/** The brushes the films are painted with, for other screens that play a film of their own. */
+export const paint = { dot, ring, line, text, tick };
+
+/**
+ * A film: particles that gather into each picture in turn. Left to itself it plays its pictures
+ * over and over; given `at` (a moment in milliseconds for each picture) it plays them once, on time.
+ */
+export function Film({ frames, at, className = 'sc-film' }: { frames: readonly Draw[]; at?: readonly number[]; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const aim = useRef<((draw: Draw, burst: boolean) => void) | null>(null);
 
@@ -268,18 +275,22 @@ function Film({ frames }: { frames: readonly Draw[] }) {
 
   // The film itself: its pictures in turn, over and over.
   useEffect(() => {
-    let at = 0;
     const first = frames[0];
     if (first) aim.current?.(first, true);
+    if (at) {
+      const timers = frames.map((frame, i) => (i === 0 ? 0 : setTimeout(() => aim.current?.(frame, false), at[i] ?? 0)));
+      return () => timers.forEach((id) => clearTimeout(id));
+    }
+    let now = 0;
     const id = setInterval(() => {
-      at = (at + 1) % frames.length;
-      const next = frames[at];
+      now = (now + 1) % frames.length;
+      const next = frames[now];
       if (next) aim.current?.(next, false);
     }, FRAME_MS);
     return () => clearInterval(id);
   }, [frames]);
 
-  return <canvas ref={ref} class="sc-film" aria-hidden="true" />;
+  return <canvas ref={ref} class={className} aria-hidden="true" />;
 }
 
 export function Showcase({ t, hero }: { t: Dict; hero: ComponentChildren }) {

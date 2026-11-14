@@ -571,3 +571,54 @@
   opacity: 0.22;
   cursor: not-allowed;
 }
+
+/* A name typed into the recipient field, and the address it was found to stand for. */
+.name-found {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.review-name {
+  display: block;
+  color: var(--fg);
+}
+
+/* The field for a name with its fixed ending beside it. */
+.name-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The link that opens the name screen, with a small round "i" beside it for what a name is. */
+.name-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.info-dot {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font: 700 12px/1 var(--mono);
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--dim);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.info-dot:hover,
+.info-dot[aria-expanded='true'] {
+  color: var(--bg);
+  background: var(--fg);
+  border-color: var(--fg);
+}
+.info-dot:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}

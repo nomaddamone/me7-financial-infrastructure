@@ -27,6 +27,8 @@ import { gaslessFee, type GaslessPricing } from '../core/gasless.ts';
 import { isUsed, planAuthorizations, planCollect, planPayment, planSendAll, type PaymentPlan } from '../core/rotation.ts';
 import { fetchBitcoinBalance, fetchEvmBalance, formatUnits } from '../net/balances.ts';
 import { GASLESS, hostOf, NET } from '../net/endpoints.ts';
+import { parseName } from '../core/names.ts';
+import { resolveName } from '../net/names.ts';
 import { fetchRelayPricing, RelayError, relaySend } from '../net/relay.ts';
 import { findEvmTransaction, PERIODS, type Change, type Period } from '../net/history.ts';
 import {
@@ -55,6 +57,10 @@ import {
 import { buildPayText, parsePayText, type PayRequest } from '../core/payqr.ts';
 import { loadRotation, rotationOwners, signWithAddresses, type Rotation } from './addresses.ts';
 import { AddressCode, AddressLine, BrandQr, Scanner } from './payqr.tsx';
+import { Hold } from './hold.tsx';
+import { Naming } from './naming.tsx';
+import { useOwnName } from './ownname.ts';
+import { addressCode } from '../core/payqr.ts';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, feeAssetOf, type AssetDef } from './assets.ts';
 import { errorText, FileDrop, useProgress, Working, type Picked } from './auth.tsx';
@@ -139,7 +145,7 @@ async function sendPlan(wallet: Wallet, plan: PaymentPlan): Promise<string> {
   return hash;
 }
 
-const relayErrorText = (t: Dict, err: unknown): string => {
+export const relayErrorText = (t: Dict, err: unknown): string => {
   const g = t.gasless;
   if (!(err instanceof RelayError)) return `${t.sendFailed} ${err instanceof Error ? err.message : String(err)}`;
   return err.code === 'limit'
@@ -299,8 +305,13 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
     { id: 'tron', label: 'trx', sub: t.receiveTronSub, address: wallet.tron, note: t.receiveTronNote },
     { id: 'btc', label: 'btc', sub: NET.btc.name, address: wallet.btc, note: t.receiveNote },
   ];
+  // A name for the main address, issued or attached on its own screen.
+  const [naming, setNaming] = useState(false);
+  const [nameInfo, setNameInfo] = useState(false);
+  const ownName = useOwnName(wallet.evm);
   const current = options.find((o) => o.id === net) ?? options[0];
   if (!current) return null;
+  if (naming) return <Naming t={t} wallet={wallet} onClose={() => setNaming(false)} />;
   return (
     <section class="panel">
       <h2 class="title">{t.receiveTitle}</h2>
@@ -317,6 +328,35 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
           <BrandQr text={payText(current.id, current.address, ask)} reveal={current.address} />
           <AddressLine t={t} address={current.address} />
           <AddressCode t={t} address={current.address} note />
+          {/* A name for the main address. It is offered beside USDC too, where people ask for something short to give out. */}
+          {(current.id === 'evm' || current.id === 'usdc') && NET.base && NET.mode === 'mainnet' && (
+            <span class="name-found">
+              {ownName ? (
+                <>
+                  <span class="dim">{t.naming.yours}</span>
+                  <b>{ownName}</b>
+                  <CopyButton t={t} value={ownName} />
+                </>
+              ) : (
+                <span class="dim">{t.naming.offer}</span>
+              )}
+              <span class="name-actions">
+                <button type="button" class="linklike" onClick={() => setNaming(true)}>
+                  {ownName ? t.naming.another : t.naming.open}
+                </button>
+                <button type="button" class="info-dot" aria-expanded={nameInfo} aria-label={t.naming.infoLabel} title={t.naming.infoLabel} onClick={() => setNameInfo((v) => !v)}>
+                  i
+                </button>
+              </span>
+              {nameInfo && (
+                <ul class="policy">
+                  {t.naming.info.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              )}
+            </span>
+          )}
           {current.id === 'usdc' && (
             <label class="field">
               <span class="field-label">{t.pay.askAmount}</span>
@@ -487,9 +527,10 @@ function Send({
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
   const [all, setAll] = useState(false);
-  const [step, setStep] = useState<'form' | 'preparing' | 'review' | 'sending' | 'done'>('form');
+  const [step, setStep] = useState<'form' | 'preparing' | 'review' | 'holding' | 'sending' | 'done'>('form');
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [txid, setTxid] = useState('');
+  const [sentAt, setSentAt] = useState<Date | null>(null);
   const [error, setError] = useState('');
   // Money only leaves after the account password is typed again.
   const [confirm, setConfirm] = useState('');
@@ -505,7 +546,29 @@ function Send({
   const [scanned, setScanned] = useState('');
   // What kind of address is in the field. An address belongs to one family of networks, so the coins of the
   // others cannot be sent to it: their buttons are greyed out, and a coin that no longer fits is changed.
-  const toNetwork = useMemo(() => parsePayText(to, NET.btc.network)?.network ?? null, [to]);
+  // A name in the field ("anna.base.eth") is looked up in the blockchain; the money goes to the address it points to.
+  const [named, setNamed] = useState<{ name: string; address: string } | 'looking' | 'missing' | 'down' | null>(null);
+  useEffect(() => {
+    const parsed = parseName(to);
+    if (!parsed) return setNamed(null);
+    setNamed('looking');
+    let live = true;
+    // A moment's pause, so that a name is asked about once it is typed, not at every letter.
+    const id = setTimeout(() => {
+      resolveName(parsed.name).then(
+        (found) => live && setNamed(found ? { name: found.name, address: found.address } : 'missing'),
+        () => live && setNamed('down'),
+      );
+    }, 450);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+  }, [to]);
+  /** Where the money goes: the address the name stands for, or what is in the field itself. */
+  const dest = named && typeof named === 'object' ? named.address : to;
+  const destParsed = useMemo(() => parsePayText(dest, NET.btc.network), [dest]);
+  const toNetwork = destParsed?.network ?? null;
   useEffect(() => {
     if (!toNetwork || !asset || networkOf(asset) === toNetwork) return;
     const next = ASSETS.find((x) => networkOf(x) === toNetwork && (toNetwork !== 'tron' || x.kind === 'trc20')) ?? ASSETS.find((x) => networkOf(x) === toNetwork);
@@ -556,7 +619,10 @@ function Send({
   const prepare = async (e: Event) => {
     e.preventDefault();
     setError('');
-    const recipient = to.trim();
+    if (named === 'looking') return setError(t.pay.nameLooking);
+    if (named === 'missing') return setError(t.pay.nameMissing);
+    if (named === 'down') return setError(t.pay.nameDown);
+    const recipient = dest.trim();
     const network = networkOf(asset);
     if (!isValidRecipient(asset, recipient)) return setError(t.badAddress);
     const units = all ? null : parseUnits(amount, asset.decimals);
@@ -634,10 +700,16 @@ function Send({
     }
     setConfirm('');
     setError('');
+    // Ten seconds in which the payment can still be called off; only then is anything signed or sent.
+    setStep('holding');
+  };
+  const launch = async () => {
+    if (!prepared) return;
     setStep('sending');
     try {
       const id = prepared.kind === 'gasless' ? await sendPlan(wallet, prepared.plan) : await executeTransfer(wallet, prepared);
       setTxid(id);
+      setSentAt(new Date());
       setStep('done');
     } catch (err) {
       setError(relayErrorText(t, err));
@@ -645,6 +717,19 @@ function Send({
     }
   };
 
+  if (step === 'holding' && prepared) {
+    return (
+      <Hold
+        t={t}
+        lines={[`${t.hold.to}: ${prepared.to}`, `${t.pay.code}: ${addressCode(prepared.to)}`]}
+        onDone={() => void launch()}
+        onCancel={() => {
+          setError(t.hold.cancelled);
+          setStep('review');
+        }}
+      />
+    );
+  }
   if (step === 'preparing' || step === 'sending') {
     return (
       <section class="panel" role="status">
@@ -657,16 +742,44 @@ function Send({
 
   if (step === 'done' && prepared) {
     const explorer = prepared.kind === 'btc' ? NET.btc.explorerTx : prepared.kind === 'tron' ? NET.tron.explorerTx : evmOf(prepared.asset).explorerTx;
+    const a = prepared.asset;
+    const feeAsset = prepared.kind === 'gasless' ? a : feeAssetOf(a);
     return (
       <section class="panel">
         <h2 class="title">{t.sentTitle}</h2>
         <p class="lead">{t.sentNote}</p>
-        <code class="addr-value">
-          <Scramble text={txid} speed={8} />
-        </code>
-        <a class="btn" href={explorer(txid)} target="_blank" rel="noopener noreferrer">
-          {t.viewTx}
-        </a>
+        {/* The report: what went, to whom, for how much, and where to find it in the network. */}
+        <dl class="review">
+          <dt>{t.sendAmount}</dt>
+          <dd class="review-total">
+            {amountText(a, prepared.amount)} {a.ticker} <span class="dim">{a.net}</span>
+            <span class="dim">{usd(a, prepared.amount)}</span>
+          </dd>
+          <dt>{t.sendTo}</dt>
+          <dd class="review-addr">
+            {named && typeof named === 'object' && named.address === prepared.to && <b class="review-name">{named.name}</b>}
+            {prepared.to}
+          </dd>
+          <dt>{t.pay.code}</dt>
+          <dd>{addressCode(prepared.to)}</dd>
+          <dt>{prepared.kind === 'tron' ? t.feeUpTo : prepared.kind === 'gasless' ? t.gasless.feeLabel : t.fee}</dt>
+          <dd>
+            {amountText(feeAsset, prepared.fee)} {feeAsset.ticker}
+            <span class="dim">{usd(feeAsset, prepared.fee)}</span>
+          </dd>
+          <dt>{t.report.when}</dt>
+          <dd>{sentAt ? sentAt.toLocaleString() : '—'}</dd>
+          <dt>{t.report.id}</dt>
+          <dd class="review-addr">
+            <Scramble text={txid} speed={8} />
+          </dd>
+        </dl>
+        <div class="row">
+          <CopyButton t={t} value={txid} />
+          <a class="btn" href={explorer(txid)} target="_blank" rel="noopener noreferrer">
+            {t.viewTx}
+          </a>
+        </div>
         <button class="btn btn--accent" onClick={() => onClose(true)}>
           {t.done}
         </button>
@@ -684,7 +797,10 @@ function Send({
         <h2 class="title">{t.reviewTitle}</h2>
         <dl class="review">
           <dt>{t.sendTo}</dt>
-          <dd class="review-addr">{prepared.to}</dd>
+          <dd class="review-addr">
+            {named && typeof named === 'object' && named.address === prepared.to && <b class="review-name">{named.name}</b>}
+            {prepared.to}
+          </dd>
           <dt>{t.pay.code}</dt>
           <dd>
             <AddressCode t={t} address={prepared.to} />
@@ -792,6 +908,7 @@ function Send({
             autocapitalize="none"
             autocorrect="off"
             spellcheck={false}
+            placeholder={t.pay.toHint}
             value={to}
             onInput={(e) => (setTo(e.currentTarget.value), setScanned(''))}
           />
@@ -800,6 +917,27 @@ function Send({
           </button>
         </span>
         {scanned && <span class="dim">{scanned}</span>}
+        {named === 'looking' && (
+          <span class="dim" role="status">
+            {t.pay.nameLooking} <Spinner />
+          </span>
+        )}
+        {named === 'missing' && <span class="dim">{t.pay.nameMissing}</span>}
+        {named === 'down' && <span class="dim">{t.pay.nameDown}</span>}
+        {named && typeof named === 'object' && (
+          <span class="name-found">
+            <span class="dim">{t.pay.nameFound.replace('{name}', named.name)}</span>
+            <code class="addr-value">{named.address}</code>
+            <AddressCode t={t} address={named.address} />
+          </span>
+        )}
+        {/* The code of whatever address is in the field, however it got there: typed, pasted, scanned or picked. */}
+        {destParsed && !(named && typeof named === 'object') && (
+          <span class="name-found">
+            <AddressCode t={t} address={destParsed.address} />
+            <span class="dim">{t.pay.codeAsk}</span>
+          </span>
+        )}
         {saved.length > 0 && (
           <span class="chips">
             {saved.map((c) => (
@@ -1002,7 +1140,7 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
   const assets = ASSETS.filter((a) => a.kind !== 'btc' && contacts.some((c) => c.asset === a.id));
   const [assetId, setAssetId] = useState(assets[0]?.id ?? '');
   const [amounts, setAmounts] = useState<Record<string, string>>({});
-  const [step, setStep] = useState<'form' | 'preparing' | 'review' | 'sending' | 'done'>('form');
+  const [step, setStep] = useState<'form' | 'preparing' | 'review' | 'holding' | 'sending' | 'done'>('form');
   const [batch, setBatch] = useState<Batch | null>(null);
   const [sent, setSent] = useState<string[]>([]);
   const [confirm, setConfirm] = useState('');
@@ -1074,6 +1212,10 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
     if (!isSessionPassword(confirm)) return setError(t.wrongPassword);
     setConfirm('');
     setError('');
+    setStep('holding');
+  };
+  const launch = async () => {
+    if (!batch) return;
     setStep('sending');
     const ids: string[] = [];
     try {
@@ -1089,6 +1231,19 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
     }
   };
 
+  if (step === 'holding' && batch) {
+    return (
+      <Hold
+        t={t}
+        lines={[`${t.hold.recipients}: ${batch.rows.length}`]}
+        onDone={() => void launch()}
+        onCancel={() => {
+          setError(t.hold.cancelled);
+          setStep('review');
+        }}
+      />
+    );
+  }
   if (step === 'preparing' || step === 'sending') {
     return (
       <section class="panel" role="status">

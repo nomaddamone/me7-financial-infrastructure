@@ -128,3 +128,39 @@
   outline: 2px solid var(--fg);
   outline-offset: 2px;
 }
+
+/* The account's own name, between the header's two ends: small and grey like the section's name.
+   A tap copies it. When there is not room for all of it, its ending gives way first, then the name itself is cut short. */
+.hd-name {
+  display: flex;
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: 0;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 0;
+  color: var(--dim);
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.hd-name span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hd-name-main {
+  flex: 0 1 auto;
+}
+.hd-name-end {
+  flex: 0 10000 auto;
+}
+.hd-name:hover {
+  color: var(--fg);
+}
+.hd-name:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
