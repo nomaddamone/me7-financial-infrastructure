@@ -64,6 +64,15 @@ export async function fetchTrc20Balance(endpoints: readonly string[], contract: 
   return BigInt(`0x${result}`);
 }
 
+/**
+ * Whether the token's issuer has frozen the address. USDT's contract keeps that list itself
+ * and answers for free; money on a frozen address stays there for good.
+ */
+export async function fetchTrc20Frozen(endpoints: readonly string[], contract: string, address: string): Promise<boolean> {
+  const { result } = await constantCall(endpoints, address, contract, 'isBlackListed(address)', trc20BalanceOfParameter(address));
+  return BigInt(`0x${result}`) !== 0n;
+}
+
 /** Energy a token transfer would burn, found by running it on a node without sending it. */
 export async function estimateTrc20Energy(
   endpoints: readonly string[],

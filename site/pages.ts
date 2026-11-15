@@ -1063,6 +1063,8 @@ export const PAGES: Page[] = [
         {
           h: 'What else stands guard',
           list: [
+            'Fake look-alikes: an address whose beginning and end match one you know, with a different middle, is called out before you send, and transfers planted from such addresses are hidden from your history.',
+            'Frozen addresses: before USDT is sent on Tron, the wallet asks the token itself whether the recipient is frozen by its issuer, and does not send money where it would be stuck.',
             'Before USDC is sent, every address is checked against lists of scam and sanctioned addresses.',
             'The scanner acts only on addresses and payment links; a code with anything else in it is not followed.',
             'With a Ledger, the address and the amount are read on the device’s own screen.',
@@ -1105,6 +1107,8 @@ export const PAGES: Page[] = [
         {
           h: 'Что ещё стоит на страже',
           list: [
+            'Адреса-подделки: адрес, у которого начало и конец совпадают со знакомым вам, а середина другая, кошелёк назовёт до отправки, а переводы, подброшенные с таких адресов, скроет из истории.',
+            'Замороженные адреса: перед отправкой USDT в сети Tron кошелёк спрашивает сам токен, не заморожен ли получатель его эмитентом, и не отправляет деньги туда, где они застрянут.',
             'Перед отправкой USDC каждый адрес сверяется со списками мошеннических и санкционных адресов.',
             'Сканер исполняет только адреса и платёжные ссылки; код с чем-либо другим внутри он не открывает.',
             'С Ledger адрес и сумма читаются на экране самого устройства.',

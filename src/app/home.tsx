@@ -49,6 +49,7 @@ import {
   broadcastTron,
   estimateTrc20Energy,
   fetchTrc20Balance,
+  fetchTrc20Frozen,
   fetchTronAccount,
   fetchTronBlock,
   fetchTronFeeRates,
@@ -70,7 +71,8 @@ import type { Dict } from './i18n.ts';
 import { CoinIcon } from './icons.tsx';
 import { Peer } from './peer.tsx';
 import { Swap, SWAPPABLE } from './swap.tsx';
-import { loadHistory, portfolioSeries, type History, type HistoryPoint } from './portfolio.ts';
+import { loadHistory, paidAddresses, portfolioSeries, rememberPaid, type History, type HistoryPoint } from './portfolio.ts';
+import { lookalikeOf } from '../core/lookalike.ts';
 import { closeWallet, isSessionPassword, openWallet, withBitcoinKey, withEvmKey, withTronKey, type Wallet } from './wallet.ts';
 import './home.css';
 
@@ -91,6 +93,18 @@ type Network = 'evm' | 'tron' | 'btc';
 const isRotated = (a: AssetDef | undefined): boolean => !!a && a.chain === 'base' && !!NET.base && a.contract === NET.base.usdc;
 const randomNonce = () => hexOf(crypto.getRandomValues(new Uint8Array(32)));
 const shortAddress = (value: string) => `${value.slice(0, 8)}…${value.slice(-6)}`;
+/** The addresses this wallet knows: its contacts and those it has paid to. A look-alike is told from these. */
+function knownAddresses(wallet: Wallet): { address: string; name?: string }[] {
+  const contacts = loadContacts(wallet.evm).map((c) => ({ address: c.address, name: c.name }));
+  return [...contacts, ...paidAddresses(wallet).map((address) => ({ address }))];
+}
+/** The known address this one imitates, as the user would recognise it: the contact's name, or the address shortened. */
+function twinOf(address: string, known: readonly { address: string; name?: string }[]): string | null {
+  const twin = lookalikeOf(address, known.map((k) => k.address));
+  if (!twin) return null;
+  const name = known.find((k) => k.address === twin)?.name;
+  return name ? `«${name}» (${shortAddress(twin)})` : shortAddress(twin);
+}
 const networkOf = (a: AssetDef): Network => (a.kind === 'btc' ? 'btc' : a.kind === 'trx' || a.kind === 'trc20' ? 'tron' : 'evm');
 
 /**
@@ -388,8 +402,8 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
 
 /** A problem the user can fix, shown as a message on the form. */
 class Problem extends Error {
-  readonly code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany';
-  constructor(code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany') {
+  readonly code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany' | 'frozenTo' | 'frozenMe';
+  constructor(code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany' | 'frozenTo' | 'frozenMe') {
     super(code);
     this.code = code;
   }
@@ -604,6 +618,10 @@ function Send({
   /** Where the money goes: the address the name stands for, or what is in the field itself. */
   const dest = named && typeof named === 'object' ? named.address : to;
   const destParsed = useMemo(() => parsePayText(dest, NET.btc.network), [dest]);
+  // An address that passes for one the wallet knows, yet is another: the mark of a planted fake.
+  const known = useMemo(() => knownAddresses(wallet), [wallet]);
+  const twin = destParsed ? twinOf(destParsed.address, known) : null;
+  const [twinAccepted, setTwinAccepted] = useState('');
   const toNetwork = destParsed?.network ?? null;
   useEffect(() => {
     if (!toNetwork || !asset || networkOf(asset) === toNetwork) return;
@@ -663,8 +681,19 @@ function Send({
     if (!isValidRecipient(asset, recipient)) return setError(t.badAddress);
     const units = all ? null : parseUnits(amount, asset.decimals);
     if (!all && (units === null || units <= 0n)) return setError(t.badAmount);
+    // A look-alike of a known address stops the first press: the second one is the user's own decision.
+    if (twin && twinAccepted !== recipient) {
+      setTwinAccepted(recipient);
+      return setError(t.guard.lookalikeStop);
+    }
     setStep('preparing');
     try {
+      if (asset.contract === NET.tron.usdt) {
+        // Tether freezes addresses, and its contract says which. If the answer cannot be had, the transfer is not held up.
+        const [toFrozen, meFrozen] = await Promise.all([recipient, wallet.tron].map((a) => fetchTrc20Frozen(NET.tron.nodes, NET.tron.usdt, a).catch(() => false)));
+        if (meFrozen) throw new Problem('frozenMe');
+        if (toFrozen) throw new Problem('frozenTo');
+      }
       const ready =
         network === 'btc'
           ? await prepareBitcoin(wallet, asset, recipient, units)
@@ -686,6 +715,10 @@ function Send({
           ? t.noFunds
           : code === 'noGas'
             ? t.noGas
+            : code === 'frozenTo'
+              ? t.guard.frozenTo
+              : code === 'frozenMe'
+                ? t.guard.frozenMe
             : code === 'noRelay'
               ? t.gasless.unavailable
               : code === 'noTron'
@@ -750,6 +783,7 @@ function Send({
     setStep('sending');
     try {
       const id = prepared.kind === 'gasless' ? await sendPlan(wallet, prepared.plan) : await executeTransfer(wallet, prepared);
+      rememberPaid(wallet, [prepared.to]);
       setTxid(id);
       setSentAt(new Date());
       setStep('done');
@@ -979,6 +1013,11 @@ function Send({
           <span class="name-found">
             <AddressCode t={t} address={destParsed.address} />
             <span class="dim">{t.pay.codeAsk}</span>
+          </span>
+        )}
+        {twin && (
+          <span class="alert" role="alert">
+            {t.guard.lookalike.replace('{known}', twin)}
           </span>
         )}
         {saved.length > 0 && (
@@ -1494,6 +1533,20 @@ function OpView({
   const explorerTx = network === 'btc' ? NET.btc.explorerTx : network === 'tron' ? NET.tron.explorerTx : evmOf(a).explorerTx;
   const tx = op.tx ?? found?.tx;
   const peer = op.peer ?? found?.peer;
+  // Money from an address that imitates one the wallet knows: its address is shown, but not offered for copying.
+  const poison = incoming && peer ? twinOf(peer, knownAddresses(wallet)) : null;
+  const [frozen, setFrozen] = useState(false);
+  useEffect(() => {
+    if (!incoming || !peer || a.contract !== NET.tron.usdt) return;
+    let stale = false;
+    void fetchTrc20Frozen(NET.tron.nodes, NET.tron.usdt, peer).then(
+      (yes) => !stale && setFrozen(yes),
+      () => undefined,
+    );
+    return () => {
+      stale = true;
+    };
+  }, [peer]);
   const short = (value: string) => (value.length > 22 ? `${value.slice(0, 10)}…${value.slice(-8)}` : value);
   return (
     <section class="panel">
@@ -1526,7 +1579,9 @@ function OpView({
             <dt>{incoming ? t.opFrom : t.opTo}</dt>
             <dd>
               <code class="addr-value">{peer}</code>
-              <CopyButton t={t} value={peer} />
+              {!poison && <CopyButton t={t} value={peer} />}
+              {poison && <span class="alert">{t.guard.poison.replace('{known}', poison)}</span>}
+              {frozen && <span class="dim facts-warn">{t.guard.frozenFrom}</span>}
             </dd>
           </>
         )}
@@ -1624,8 +1679,14 @@ function AssetView({
   const network = networkOf(a);
   const address = network === 'btc' ? wallet.btc : network === 'tron' ? wallet.tron : wallet.evm;
   // Some sources hand back more history than the period asked for; show only what falls inside it.
-  const operations = (history?.changes[a.id] ?? [])
-    .filter((o) => o.time >= now - period.seconds)
+  // Transfers planted from look-alike addresses are kept out of sight unless asked for: the history is where a fake gets copied from.
+  const known = useMemo(() => knownAddresses(wallet), [wallet, history]);
+  const [showFakes, setShowFakes] = useState(false);
+  const isFake = (o: Change) => o.delta > 0n && !!o.peer && twinOf(o.peer, known) !== null;
+  const inPeriod = (history?.changes[a.id] ?? []).filter((o) => o.time >= now - period.seconds);
+  const fakes = inPeriod.filter(isFake).length;
+  const operations = inPeriod
+    .filter((o) => showFakes || !isFake(o))
     .sort((x, y) => y.time - x.time)
     .slice(0, 8);
   const isToken = a.kind === 'erc20' || a.kind === 'trc20';
@@ -1736,7 +1797,10 @@ function AssetView({
             {operations.map((o, i) => (
               <li key={i} class="asset-li">
                 <button class="asset-row" onClick={() => onOp(o)}>
-                  <span class="dim">{dateText(o.time, period)}</span>
+                  <span class="dim">
+                    {dateText(o.time, period)}
+                    {isFake(o) && <span class="alert"> {t.guard.mark}</span>}
+                  </span>
                   <span class={cls('num', o.delta > 0n && 'up')}>
                     {o.delta > 0n ? '+' : '−'}
                     {amountText(a, o.delta > 0n ? o.delta : -o.delta)} {a.ticker}
@@ -1747,6 +1811,14 @@ function AssetView({
           </ul>
         ) : (
           <p class="note">{history ? t.noOperations : historyDown ? t.historyDown : <Spinner />}</p>
+        )}
+        {fakes > 0 && (
+          <p class="note">
+            {t.guard.hidden.replace('{n}', String(fakes))}{' '}
+            <button type="button" class="linklike" onClick={() => setShowFakes((v) => !v)}>
+              {showFakes ? t.guard.hide : t.guard.show}
+            </button>
+          </p>
         )}
       </section>
 
@@ -1987,10 +2059,13 @@ function Pocket({
 
   // Latest movements across every coin, without the dust (network fees worth under a cent).
   const sinceTime = Math.floor(Date.now() / 1000) - period.seconds;
+  const feedKnown = knownAddresses(wallet);
   const feed =
     history && prices
       ? ASSETS.flatMap((a) => (history.changes[a.id] ?? []).map((c) => ({ a, time: c.time, delta: c.delta, change: c })))
           .filter((o) => o.time >= sinceTime && usdValue(o.a, o.delta < 0n ? -o.delta : o.delta, prices) >= 0.01)
+          // A transfer planted from a look-alike address is not news; it is found, marked, on the coin's own page.
+          .filter((o) => !(o.delta > 0n && o.change.peer && twinOf(o.change.peer, feedKnown) !== null))
           .sort((x, y) => y.time - x.time)
           .slice(0, 5)
       : null;

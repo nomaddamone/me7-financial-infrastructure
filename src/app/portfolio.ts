@@ -46,6 +46,31 @@ function changesOf(a: AssetDef, wallet: Wallet, since: number): Promise<Change[]
   }
 }
 
+/**
+ * Addresses this wallet has paid to, kept in this browser: what a look-alike address is told
+ * from (see src/core/lookalike.ts). Filled from the history as it loads and from each transfer sent.
+ */
+const PAID_MAX = 200;
+const paidKey = (wallet: Wallet) => `me7.paid.${wallet.evm.toLowerCase()}`;
+export function paidAddresses(wallet: Wallet): string[] {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(paidKey(wallet)) ?? '[]');
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string' && x.length <= 120).slice(0, PAID_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+export function rememberPaid(wallet: Wallet, addresses: readonly string[]): void {
+  const fresh = addresses.filter((a) => a && a.length <= 120);
+  if (fresh.length === 0) return;
+  try {
+    const next = [...new Set([...fresh, ...paidAddresses(wallet)])].slice(0, PAID_MAX);
+    localStorage.setItem(paidKey(wallet), JSON.stringify(next));
+  } catch {
+    /* no storage: the check then knows only the contacts */
+  }
+}
+
 /** Recently loaded histories, so flipping between periods doesn't hit the sources again. */
 const CACHE_SECONDS = 60;
 const cache = new Map<string, { at: number; history: Promise<History> }>();
@@ -170,6 +195,7 @@ async function load(wallet: Wallet, period: Period, now: number): Promise<Histor
     changes[a.id] = r.status === 'fulfilled' ? r.value : [];
     if (r.status === 'rejected') partial = true;
   });
+  rememberPaid(wallet, Object.values(changes).flatMap((list) => list.flatMap((c) => (c.delta < 0n && c.peer ? [c.peer] : []))));
   return { ...prices, changes, partial };
 }
 
