@@ -73,6 +73,9 @@ import { Peer } from './peer.tsx';
 import { Swap, SWAPPABLE } from './swap.tsx';
 import { loadHistory, paidAddresses, portfolioSeries, rememberPaid, type History, type HistoryPoint } from './portfolio.ts';
 import { lookalikeOf } from '../core/lookalike.ts';
+import { STEALTH_INDEX } from './stealth.ts';
+import { parseStealthCode, stealthAddressFor, stealthCode, stealthKeys, stealthMetaAddress, tokenMetadata } from '../core/stealth.ts';
+import type { StealthNote } from '../core/gasless.ts';
 import { closeWallet, isSessionPassword, openWallet, withBitcoinKey, withEvmKey, withTronKey, type Wallet } from './wallet.ts';
 import './home.css';
 
@@ -141,7 +144,7 @@ export function Qr({ text }: { text: string }) {
 }
 
 /** Sign a plan's permissions with the keys of the addresses involved and hand them to the relay. Returns the transaction hash. */
-async function sendPlan(wallet: Wallet, plan: PaymentPlan): Promise<string> {
+async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[]): Promise<string> {
   const base = NET.base;
   if (!base) throw new Error('no Base network');
   const unsigned = planAuthorizations(plan, {
@@ -153,7 +156,7 @@ async function sendPlan(wallet: Wallet, plan: PaymentPlan): Promise<string> {
   });
   const [fee, ...transfers] = signWithAddresses(wallet, { ...GASLESS.domain, chainId: base.chainId, contract: base.usdc }, [unsigned.fee, ...unsigned.transfers]);
   if (!fee) throw new Error('nothing to sign');
-  const hash = await relaySend({ chain: 'base', transfers, fee });
+  const hash = await relaySend({ chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}) });
   // What was just read about the addresses is out of date now.
   void loadRotation(wallet, true).catch(() => undefined);
   return hash;
@@ -228,7 +231,7 @@ function AddressList({ t, wallet, rotation, prices, onChanged }: { t: Dict; wall
           <li key={h.index} class="addr-row">
             <span class="addr-row-name">
               <code>{shortAddress(h.address)}</code>
-              <span class="dim">{h.index === 0 ? g.addrMain : h.index === rotation.receive.index ? g.addrNext : `#${h.index}`}</span>
+              <span class="dim">{h.index === 0 ? g.addrMain : h.index === rotation.receive.index ? g.addrNext : h.index >= STEALTH_INDEX ? `stealth #${h.index - STEALTH_INDEX + 1}` : `#${h.index}`}</span>
             </span>
             <span class="addr-row-sum">{amountText(usdc, h.balance)}</span>
             <CopyButton t={t} value={h.address} />
@@ -295,6 +298,14 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
   const [failed, setFailed] = useState(false);
   // An amount to ask for, which turns the code into a payment request.
   const [ask, setAsk] = useState('');
+  // USDC on Base is received one of two ways: on an address that changes after each payment (rotation),
+  // or by a code that never changes and gives every payer an address of their own (stealth).
+  const [mode, setMode] = useState<'rotation' | 'stealth'>('rotation');
+  const [stealthInfo, setStealthInfo] = useState(false);
+  const stealth = useMemo(() => {
+    const meta = stealthMetaAddress(stealthKeys(wallet.seed));
+    return { meta, code: stealthCode(meta) };
+  }, [wallet]);
   const reload = useCallback(() => {
     if (!rotating) return;
     loadRotation(wallet, true).then(
@@ -337,7 +348,56 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
           </button>
         ))}
       </div>
-      {current.address ? (
+      {current.id === 'usdc' && (
+        <div class="seg seg--two seg--mode" role="tablist" aria-label={t.stealth.modes}>
+          {(['rotation', 'stealth'] as const).map((m) => (
+            <button key={m} type="button" role="tab" aria-selected={m === mode} class="seg-item" onClick={() => setMode(m)}>
+              {m} mode
+              <span class="seg-net">
+                {m === 'rotation' ? t.stealth.rotationSub : t.stealth.stealthSub}
+                {m === 'stealth' && (
+                  // What stealth mode is: a mark inside the tab, which opens the explanation without switching the tab.
+                  <span
+                    class="info-dot info-dot--in"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={stealthInfo}
+                    aria-label={t.stealth.infoLabel}
+                    title={t.stealth.infoLabel}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setStealthInfo((v) => !v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setStealthInfo((v) => !v);
+                    }}
+                  >
+                    i
+                  </span>
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {current.id === 'usdc' && stealthInfo && (
+        <ul class="policy policy--aside">
+          {t.stealth.info.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {current.id === 'usdc' && mode === 'stealth' ? (
+        <>
+          <BrandQr text={stealth.code} reveal={stealth.code} />
+          <AddressLine t={t} address={stealth.code} />
+          <AddressCode t={t} address={stealth.meta} note />
+          <p class="note">{t.stealth.note}</p>
+        </>
+      ) : current.address ? (
         <>
           <BrandQr text={payText(current.id, current.address, ask)} reveal={current.address} />
           <AddressLine t={t} address={current.address} />
@@ -384,8 +444,8 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
           {failed ? t.nodesDown : <Spinner />}
         </p>
       )}
-      <p class="note">{current.note}</p>
-      {current.id === 'usdc' && rotation && (
+      {!(current.id === 'usdc' && mode === 'stealth') && <p class="note">{current.note}</p>}
+      {current.id === 'usdc' && mode === 'rotation' && rotation && (
         <>
           <button type="button" class="linklike" onClick={() => setShowAll((v) => !v)}>
             {g.allAddresses}
@@ -419,7 +479,7 @@ interface PreparedBase {
 type Prepared =
   | (PreparedBase & { kind: 'evm'; tx: EvmTransaction })
   // USDC sent without ETH: the fee is in USDC, and me7's relay pays the gas.
-  | (PreparedBase & { kind: 'gasless'; plan: PaymentPlan })
+  | (PreparedBase & { kind: 'gasless'; plan: PaymentPlan; note?: StealthNote })
   | (PreparedBase & { kind: 'btc'; plan: BitcoinSendPlan })
   // A Tron transaction expires a minute after it is built, so it is built at send time.
   | (PreparedBase & { kind: 'tron'; feeLimit: bigint; activates: boolean })
@@ -622,6 +682,13 @@ function Send({
   const known = useMemo(() => knownAddresses(wallet), [wallet]);
   const twin = destParsed ? twinOf(destParsed.address, known) : null;
   const [twinAccepted, setTwinAccepted] = useState('');
+  // A stealth code in the field: not an address but the way to make one, for USDC on Base only.
+  const stealthTo = useMemo(() => parseStealthCode(to), [to]);
+  useEffect(() => {
+    if (!stealthTo || isRotated(asset)) return;
+    const usdc = ASSETS.find(isRotated);
+    if (usdc) setAsset(usdc);
+  }, [stealthTo]);
   const toNetwork = destParsed?.network ?? null;
   useEffect(() => {
     if (!toNetwork || !asset || networkOf(asset) === toNetwork) return;
@@ -676,8 +743,20 @@ function Send({
     if (named === 'looking') return setError(t.pay.nameLooking);
     if (named === 'missing') return setError(t.pay.nameMissing);
     if (named === 'down') return setError(t.pay.nameDown);
-    const recipient = dest.trim();
+    let recipient = dest.trim();
     const network = networkOf(asset);
+    // Paying by a stealth code: a new address is worked out here, with a key used this once, and the money goes there.
+    let hidden: { address: string; ephemeralPubKey: string; viewTag: number } | null = null;
+    if (stealthTo) {
+      if (!isRotated(asset) || !viaRelay || byGas || !NET.base) return setError(t.stealth.onlyUsdc);
+      try {
+        const paid = stealthAddressFor(stealthTo, crypto.getRandomValues(new Uint8Array(32)));
+        hidden = { address: paid.address, ephemeralPubKey: hexOf(paid.ephemeralPubKey), viewTag: paid.viewTag };
+        recipient = paid.address;
+      } catch {
+        return setError(t.badAddress);
+      }
+    }
     if (!isValidRecipient(asset, recipient)) return setError(t.badAddress);
     const units = all ? null : parseUnits(amount, asset.decimals);
     if (!all && (units === null || units <= 0n)) return setError(t.badAmount);
@@ -706,7 +785,10 @@ function Send({
             : viaRelay && !byGas
               ? await prepareGasless(recipient, units)
               : await prepareEvm(wallet, asset, recipient, units);
-      setPrepared(ready);
+      // The note that lets the receiver find the payment travels with it, in the same operation.
+      const note = hidden && ready.kind === 'gasless' && NET.base ? { stealthAddress: hidden.address, ephemeralPubKey: hidden.ephemeralPubKey, metadata: hexOf(tokenMetadata(hidden.viewTag, NET.base.usdc, ready.amount)) } : null;
+      if (hidden && !note) throw new Problem('noRelay');
+      setPrepared(note && ready.kind === 'gasless' ? { ...ready, note } : ready);
       setStep('review');
     } catch (err) {
       const code = err instanceof BitcoinSendError || err instanceof Problem ? err.code : '';
@@ -782,8 +864,9 @@ function Send({
     if (!prepared) return;
     setStep('sending');
     try {
-      const id = prepared.kind === 'gasless' ? await sendPlan(wallet, prepared.plan) : await executeTransfer(wallet, prepared);
-      rememberPaid(wallet, [prepared.to]);
+      const id = prepared.kind === 'gasless' ? await sendPlan(wallet, prepared.plan, prepared.note ? [prepared.note] : undefined) : await executeTransfer(wallet, prepared);
+      // An address made for one stealth payment is not one the wallet will ever pay again: it is not remembered.
+      if (!(prepared.kind === 'gasless' && prepared.note)) rememberPaid(wallet, [prepared.to]);
       setTxid(id);
       setSentAt(new Date());
       setStep('done');
@@ -911,6 +994,7 @@ function Send({
         </dl>
         {prepared.kind === 'tron' && prepared.activates && <p class="note">{t.tronNewAddress}</p>}
         {prepared.kind === 'tronless' && <p class="note">{t.tronless.note}</p>}
+        {prepared.kind === 'gasless' && prepared.note && <p class="note">{t.stealth.reviewNote}</p>}
         {prepared.kind === 'gasless' && (
           <p class="note">
             {prepared.plan.via && `${t.gasless.gathered.replace('{n}', String(prepared.plan.sources.length))} `}
@@ -1018,6 +1102,12 @@ function Send({
         {twin && (
           <span class="alert" role="alert">
             {t.guard.lookalike.replace('{known}', twin)}
+          </span>
+        )}
+        {stealthTo && (
+          <span class="name-found">
+            <AddressCode t={t} address={stealthTo.meta} />
+            <span class="dim">{t.stealth.payNote}</span>
           </span>
         )}
         {saved.length > 0 && (

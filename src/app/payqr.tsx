@@ -2,7 +2,16 @@ import encodeQR from 'qr';
 import decodeQR from 'qr/decode.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { addressCode, addressPattern, parsePayText, type PayRequest } from '../core/payqr.ts';
+import { parseStealthCode } from '../core/stealth.ts';
 import { NET } from '../net/endpoints.ts';
+
+/** What a scanned or pasted text asks for: an address or payment link, or a stealth code (which pays USDC on Base). */
+function readPayText(text: string): PayRequest | null {
+  const request = parsePayText(text, NET.btc.network);
+  if (request) return request;
+  const stealth = parseStealthCode(text);
+  return stealth && NET.base ? { network: 'evm', address: `st:${stealth.chain ?? 'base'}:${stealth.meta}`, asset: 'usdc-base' } : null;
+}
 import { Spinner } from './fx.tsx';
 import type { Dict } from './i18n.ts';
 import './payqr.css';
@@ -235,7 +244,7 @@ function readFrame(source: CanvasImageSource, width: number, height: number, can
   } catch {
     return null;
   }
-  const request = parsePayText(text, NET.btc.network);
+  const request = readPayText(text);
   return request ? { request } : { other: true };
 }
 
@@ -323,7 +332,7 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
       if (image) return void fromBlob(image);
       const text = e.clipboardData?.getData('text');
       if (text) {
-        const request = parsePayText(text, NET.btc.network);
+        const request = readPayText(text);
         take(request ? { request } : { other: true });
       }
     };

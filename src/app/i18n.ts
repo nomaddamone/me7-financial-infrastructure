@@ -81,6 +81,7 @@ const ru = {
         title: 'адреса для usdc',
         items: [
           'USDC в сети Base вы получаете на адрес, который меняется после каждого поступления. Так плательщик видит только свой перевод, а не весь ваш баланс. Баланс в кошельке при этом один.',
+          'В режиме stealth mode вы даёте один постоянный код. Кошелёк плательщика делает по нему новый адрес для каждого платежа, а записку о платеже кладёт в блокчейн сервис me7 в той же операции. Работает из me7 в me7, только для USDC в сети Base.',
           'Это защита от посторонних глаз, а не анонимность. Все переводы остаются в блокчейне, и при желании ваши адреса можно связать между собой.',
           'Обмен, P2P(Peer) и трейдинг работают с основного адреса кошелька. USDC с остальных адресов собирается на него одной операцией.',
         ],
@@ -249,6 +250,23 @@ const ru = {
     show: 'показать',
     hide: 'скрыть',
     mark: 'подделка адреса',
+  },
+  stealth: {
+    modes: 'способ получения',
+    rotationSub: 'адрес меняется',
+    stealthSub: '(только внутри me7)',
+    infoLabel: 'что такое stealth mode',
+    onlyUsdc: 'По стелс-коду можно отправить только USDC в сети Base, без газа.',
+    payNote: 'Это стелс-код. Платёж уйдёт на новый адрес, который видит только получатель. Сверьте цифры с ним.',
+    reviewNote: 'Получатель дал стелс-код: адрес выше сделан для этого одного платежа. Получатель найдёт деньги сам, у себя в кошельке.',
+    info: [
+      'Stealth mode работает по открытому стандарту стелс-адресов (ERC-5564).',
+      'Вы даёте один постоянный код. Кошелёк плательщика сам делает по нему новый адрес для каждого платежа. Связать эти адреса с вами или между собой со стороны нельзя.',
+      'Найти такие платежи и потратить их можете только вы: ключи для этого получаются из вашей фразы.',
+      'Стандарт поддерживают и некоторые другие кошельки, так что пробовать можно. Но пока мы советуем пользоваться этим режимом только из me7 в me7.',
+      'Работает для USDC в сети Base. Суммы и время переводов в блокчейне видны всегда.',
+    ],
+    note: 'Этот код не меняется, его можно дать сразу многим. Каждый, кто платит по нему из me7, платит на новый адрес, который видите только вы. Обычные кошельки и биржи его не поймут: для них режим rotation.',
   },
   hold: {
     cancel: 'отменить перевод',
@@ -852,6 +870,7 @@ const en: Dict = {
         title: 'addresses for usdc',
         items: [
           'You receive USDC on Base at an address that changes after every payment. A payer sees only their own transfer, not your whole balance. The wallet still shows one balance.',
+          "In stealth mode you give out one code that never changes. The payer's wallet makes a new address from it for every payment, and me7's service leaves the note about the payment on the blockchain in the same operation. It works from me7 to me7, for USDC on Base only.",
           'This keeps prying eyes off; it is not anonymity. Every transfer stays on the blockchain, and with effort your addresses can be linked to one another.',
           "The swap, P2P(Peer) and trading work from the wallet's main address. USDC from the other addresses is brought onto it in one operation.",
         ],
@@ -1020,6 +1039,23 @@ const en: Dict = {
     show: 'show',
     hide: 'hide',
     mark: 'look-alike address',
+  },
+  stealth: {
+    modes: 'way of receiving',
+    rotationSub: 'the address changes',
+    stealthSub: '(inside me7 only)',
+    infoLabel: 'what stealth mode is',
+    onlyUsdc: 'A stealth code can be paid only in USDC on Base, without gas.',
+    payNote: 'This is a stealth code. The payment will go to a new address that only the recipient can see. Compare the digits with them.',
+    reviewNote: 'The recipient gave a stealth code: the address above was made for this one payment. The recipient will find the money in their own wallet.',
+    info: [
+      'Stealth mode follows the open standard for stealth addresses (ERC-5564).',
+      "You give out one code that never changes. The payer's wallet makes a new address from it for every payment. Nobody outside can tie those addresses to you or to each other.",
+      'Only you can find such payments and spend them: the keys for that come from your phrase.',
+      'A few other wallets support the standard too, so you may try. For now, though, we recommend this mode only from me7 to me7.',
+      'It works for USDC on Base. Amounts and times of transfers are always visible on the blockchain.',
+    ],
+    note: 'This code never changes; you can give it to many people at once. Everyone who pays by it from me7 pays to a new address that only you can see. Ordinary wallets and exchanges will not understand it: for them, use rotation.',
   },
   hold: {
     cancel: 'cancel the transfer',

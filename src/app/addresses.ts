@@ -4,6 +4,7 @@ import { signAuthorization, type SignedAuthorization, type TokenDomain } from '.
 import { isUsed, receiveIndex, type Holding, type Unsigned } from '../core/rotation.ts';
 import { NET } from '../net/endpoints.ts';
 import { scanHoldings } from '../net/rotation.ts';
+import { STEALTH_INDEX, stealthFinds, stealthKeyAt, syncStealth } from './stealth.ts';
 import type { Wallet } from './wallet.ts';
 
 /**
@@ -66,7 +67,15 @@ async function scan(wallet: Wallet): Promise<Rotation> {
   const used = new Set(holdings.filter(isUsed).map((h) => h.index));
   let fresh = receive + 1;
   while (used.has(fresh)) fresh++;
-  return { holdings, total: holdings.reduce((sum, h) => sum + h.balance, 0n), receive: at(receive), fresh: at(Math.min(fresh, holdings.length - 1)) };
+  const result = { receive: at(receive), fresh: at(Math.min(fresh, holdings.length - 1)) };
+  // Money that came by the stealth code sits on addresses of its own. They join the list after the
+  // rotating ones, so nothing above mistakes them for the seed's path. If the chain cannot be read
+  // for new ones just now, those already known are still counted.
+  const finds = await syncStealth(wallet).catch(() => stealthFinds(wallet));
+  if (finds.length > 0) {
+    holdings = [...holdings, ...(await scanHoldings(base.rpc, base.usdc, finds.map((f, i) => ({ index: STEALTH_INDEX + i, address: f.address }))))];
+  }
+  return { holdings, total: holdings.reduce((sum, h) => sum + h.balance, 0n), ...result };
 }
 
 /** The wallet's addresses and what they hold. Answers within the last 15 seconds are reused unless `fresh` is asked for. */
@@ -76,7 +85,7 @@ export function loadRotation(wallet: Wallet, fresh = false): Promise<Rotation> {
   const result = scan(wallet);
   scans.set(wallet.evm, { at: Date.now(), result });
   result.then(
-    (r) => lastOwners.set(wallet.evm, r.holdings.slice(0, r.fresh.index + 2).map((h) => h.address)),
+    (r) => lastOwners.set(wallet.evm, [...r.holdings.filter((h) => h.index < STEALTH_INDEX).slice(0, r.fresh.index + 2), ...r.holdings.filter((h) => h.index >= STEALTH_INDEX)].map((h) => h.address)),
     () => scans.delete(wallet.evm),
   );
   return result;
@@ -104,6 +113,11 @@ export function signWithAddresses(wallet: Wallet, domain: TokenDomain, unsigned:
   try {
     return unsigned.map(({ index, ...auth }) => {
       let key = keys.get(index);
+      if (!key && index >= STEALTH_INDEX) {
+        // A stealth address: its key is the spending key plus what the payer's note gives.
+        key = stealthKeyAt(wallet, index);
+        keys.set(index, key);
+      }
       if (!key) {
         const child = parent.deriveChild(index);
         if (!child.privateKey) throw new Error('derivation produced no key');

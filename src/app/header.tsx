@@ -121,6 +121,10 @@ export function Header({
                 {item.soon && <span class="tab-soon">{t.soon}</span>}
               </button>
             ))}
+            {/* The fourth part is the public pages about the wallet: plain pages of their own, in this language. */}
+            <a class="hd-menu-item" role="menuitem" href={`/${lang}/`}>
+              /about
+            </a>
           </span>
         )}
         {/* The source code, one click away from the name. */}

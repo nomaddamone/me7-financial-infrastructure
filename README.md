@@ -29,6 +29,7 @@ The only official address of me7 is **https://me7.network**. Anything else that 
 | **USDC without ETH** | You sign a USDC transfer on Base with your own key and me7 covers the network gas. One plain fee, shown before you confirm. |
 | **USDT without TRX** | A USDT transfer on Tron from an address with no TRX: me7 pays the network, the fee is taken in USDT and shown before you confirm. |
 | **Address rotation** | After every payment received the wallet hands out a new address. A payer sees their own transfer, not your whole balance. |
+| **Stealth addresses** | One code that never changes (ERC-5564): the payer's wallet makes a new address from it for every USDC payment, and only the receiver can find and spend it. Such an address never needs ETH. |
 | **Address selection** | Money sits on several addresses, like coins in a Bitcoin wallet. A payment takes as many as it needs and leaves the rest untouched. |
 | **Transit address** | Money is gathered on a fresh one-time address and leaves from there, in one operation. |
 | **Cold signing** | With a Ledger the key never leaves the device. Every transfer is read on its screen; nothing is signed blind. |

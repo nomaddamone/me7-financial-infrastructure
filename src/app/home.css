@@ -155,6 +155,28 @@
 .seg--four .seg-item:nth-last-child(-n + 4) {
   border-bottom: 0;
 }
+/* The way USDC is received: two halves, a little lower than the row of coins. */
+.seg--two {
+  grid-template-columns: repeat(2, 1fr);
+}
+.seg--two .seg-item {
+  display: grid;
+  gap: 1px;
+  padding: 7px 2px;
+}
+/* The mark that explains a mode sits inside its tab, after the words. */
+.seg-net .info-dot--in {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  font-size: 10px;
+  vertical-align: middle;
+}
+.seg--mode .seg-net {
+  font-size: 10px;
+  white-space: nowrap;
+}
 .seg--three {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -493,6 +515,16 @@
   padding-left: 18px;
   display: grid;
   gap: 6px;
+}
+/* An explanation opened by a mark: small and quiet, a note beside the screen and not the screen itself. */
+.policy--aside {
+  gap: 4px;
+  padding: 10px 12px 10px 28px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 3px;
 }
 
 /* Saved contacts under the recipient field. */

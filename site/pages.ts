@@ -40,24 +40,28 @@ export interface Page {
 
 export const UI = {
   en: {
-    open: 'Open the wallet',
-    all: 'All features',
+    open: 'open the wallet',
+    all: 'everything it does',
     more: 'More about me7',
     questions: 'Questions',
     source: 'Source code',
     other: 'Русский',
     foot: 'me7 is a program, and its code is public for anyone to check. Keep in it as much as you are prepared to trust to a program. The only official address is me7.network.',
     cta: 'No sign-up, no email, no app to install. The wallet opens in your browser.',
+    soon: 'soon',
+    groups: { protect: 'How it protects you', private: 'Who sees what', easy: 'What makes it easy' },
   },
   ru: {
-    open: 'Открыть кошелёк',
-    all: 'Все возможности',
+    open: 'открыть кошелёк',
+    all: 'всё, что он умеет',
     more: 'Ещё о me7',
     questions: 'Вопросы и ответы',
     source: 'Исходный код',
     other: 'English',
     foot: 'me7 — это программа, и её код открыт для проверки любым желающим. Держите в ней столько, сколько готовы доверить программе. Единственный официальный адрес — me7.network.',
     cta: 'Без регистрации, почты и установки приложений. Кошелёк открывается прямо в браузере.',
+    soon: 'скоро',
+    groups: { protect: 'Как он вас защищает', private: 'Кто что видит', easy: 'Чем он удобен' },
   },
 } as const;
 
@@ -66,7 +70,7 @@ export const HUB: Page = {
   id: 'hub',
   en: {
     slug: '',
-    title: 'me7 — self-custody crypto wallet in your browser',
+    title: 'What the me7 wallet does: protection, privacy, no gas to buy',
     description:
       'A web wallet where the keys never leave your browser. USDC on Base without ETH, USDT on Tron without TRX, a key hidden in a photo, rotating addresses. Source code is public.',
     h1: 'A crypto wallet where the keys stay with you',
@@ -81,6 +85,7 @@ export const HUB: Page = {
           'The same goes for USDT on Tron: no TRX needed. me7 pays the network, and the fee is taken in USDT, shown before you confirm.',
           'Your key is a file and a password, not twelve words on a slip of paper. The file can hide inside your own photo, PDF or song.',
           'A payer sees their own transfer, not your whole balance: the wallet hands out a new address after every payment received.',
+          'Stealth mode: one code that never changes, and every payer who uses it from me7 pays to a new address only you can find.',
           'Under pressure you can open a second, empty vault with a different password.',
           'A transfer is hard to send to the wrong place: an eight-digit address code to compare with the recipient, ten seconds to cancel after you confirm, and a receipt once it is sent.',
           'You can pay to a name such as anna.base.eth instead of forty characters, and take a name for your own address.',
@@ -121,7 +126,7 @@ export const HUB: Page = {
   },
   ru: {
     slug: '',
-    title: 'me7 — некастодиальный криптокошелёк в браузере',
+    title: 'Что умеет кошелёк me7: защита, приватность, переводы без газа',
     description:
       'Веб-кошелёк, где ключи не покидают ваш браузер. USDC в сети Base без ETH, USDT в сети Tron без TRX, ключ внутри фотографии, ротация адресов. Исходный код открыт.',
     h1: 'Криптокошелёк, где ключи остаются у вас',
@@ -136,6 +141,7 @@ export const HUB: Page = {
           'То же с USDT в сети Tron: TRX не нужны. Сеть оплачивает me7, а комиссия берётся в USDT, и её видно до подтверждения.',
           'Ключ — это файл и пароль, а не двенадцать слов на бумажке. Файл можно спрятать в своей фотографии, PDF или песне.',
           'Плательщик видит только свой перевод, а не весь ваш баланс: после каждого поступления кошелёк выдаёт новый адрес.',
+          'Stealth mode: один постоянный код, и каждый, кто платит по нему из me7, платит на новый адрес, который можете найти только вы.',
           'Под давлением можно открыть второй, пустой сейф другим паролем.',
           'Перевод трудно отправить не туда: восьмизначный код адреса для сверки с получателем, десять секунд на отмену после подтверждения и отчёт после отправки.',
           'Платить можно на имя вроде anna.base.eth вместо сорока символов, а для своего адреса взять собственное имя.',
@@ -1119,6 +1125,103 @@ export const PAGES: Page[] = [
         { q: 'Код адреса работает только с QR-кодом?', a: 'Нет. Код вычисляется из адреса, поэтому показывается для любого адреса в поле получателя: набранного, вставленного, отсканированного или найденного по имени.' },
         { q: 'Можно ли отменить перевод после десяти секунд?', a: 'Нет. Когда перевод ушёл в сеть, вернуть его не может никто: ни вы, ни me7. Десять секунд — последний момент, чтобы передумать.' },
         { q: 'Нужен ли получателю me7, чтобы назвать код?', a: 'Код показывает me7 на экране получения. Если у получателя другой кошелёк, сверьте сам адрес так, как делаете обычно; десять секунд и отчёт работают в любом случае.' },
+      ],
+    },
+  },
+  {
+    id: 'stealth',
+    en: {
+      slug: 'stealth-addresses',
+      title: 'Stealth addresses for USDC: one code, a new address each time — me7',
+      description: 'Give out one code that never changes. Everyone who pays by it from me7 pays USDC to a new address only you can find and spend from. No ETH needed. ERC-5564.',
+      h1: 'One code, a new address for every payer',
+      lead: 'An address tells everyone who has it what you hold and who pays you. A stealth code tells them nothing. You give out one code; each payer’s wallet makes a fresh address from it, and only your wallet can find the money and spend it.',
+      card: 'One code that never changes; every payment lands on its own address.',
+      sections: [
+        {
+          h: 'How it works',
+          p: [
+            'The code holds two of your public keys. The payer’s wallet takes them, adds a key it uses once, and works out an address nobody has seen before. The USDC goes there, and beside the payment a short note is left on the blockchain.',
+            'To everyone else the note is random bytes. Your wallet reads the notes, recognises its own with a viewing key, and works out the private key of that address. Nobody else can do either.',
+          ],
+        },
+        {
+          h: 'What stealth addresses usually lack, and me7 has',
+          list: [
+            'Gas. A fresh address has no ETH, and sending it some from your own address would tie the two together. In me7 USDC moves by signature and the service pays the gas, so the address never needs ETH.',
+            'A long address. The code is about 140 characters. In me7 it travels as a QR code or by the copy button, and eight digits let payer and receiver check it is the right one.',
+            'A separate app. The stealth addresses sit in the same balance as the rest of your USDC and are spent the same way.',
+          ],
+        },
+        {
+          h: 'How to use it',
+          steps: [
+            'Open receive, choose USDC on Base and switch to stealth mode.',
+            'Show the QR code or copy the code and send it to whoever pays you. The same code can go to many people.',
+            'The payer scans it or pastes it into the recipient field in me7, checks the eight digits with you, and sends.',
+            'The money appears in your balance. Spend it like any other USDC.',
+          ],
+        },
+        {
+          h: 'What to keep in mind',
+          list: [
+            'It works from me7 to me7. The standard (ERC-5564) is open and a few other wallets follow it, so you may try them, but for now we recommend me7 on both sides. Ordinary wallets and exchanges will not understand the code: give them the rotating address.',
+            'It is for USDC on Base. With a Ledger it is not available: the device cannot sign with a key worked out on the fly.',
+            'It is protection from prying eyes, not anonymity. Amounts and times are always visible on the blockchain; when you spend from several stealth addresses in one payment, they become linked to each other.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'How is this different from a rotating address?', a: 'A rotating address is made by your wallet and is good for one payer: each one needs a fresh one. A stealth code is given once to everybody, and each payer’s wallet makes the address. Rotation works with any wallet; the stealth code needs me7 on the paying side.' },
+        { q: 'Can someone who has my code see my payments?', a: 'No. With the code one can only pay you. Finding the payments takes your viewing key, and spending them takes your spending key; both come from your recovery phrase and never leave your browser.' },
+        { q: 'What if I lose the device?', a: 'Nothing is lost. The keys come from the same 24 words as the rest of the wallet, and the wallet reads the blockchain again to find the payments.' },
+      ],
+    },
+    ru: {
+      slug: 'stels-adresa',
+      title: 'Стелс-адреса для USDC: один код, каждый раз новый адрес — me7',
+      description: 'Дайте один постоянный код. Каждый, кто платит по нему из me7, платит USDC на новый адрес, который найти и потратить можете только вы. Без ETH. Стандарт ERC-5564.',
+      h1: 'Один код, новый адрес для каждого плательщика',
+      lead: 'Адрес рассказывает каждому, у кого он есть, сколько у вас денег и кто вам платит. Стелс-код не рассказывает ничего. Вы даёте один код, кошелёк каждого плательщика делает по нему новый адрес, а найти деньги и потратить их может только ваш кошелёк.',
+      card: 'Один постоянный код; каждый платёж приходит на свой адрес.',
+      sections: [
+        {
+          h: 'Как это работает',
+          p: [
+            'В коде два ваших открытых ключа. Кошелёк плательщика берёт их, добавляет ключ, который использует один раз, и вычисляет адрес, которого раньше никто не видел. USDC уходят на него, а рядом с платежом в блокчейне остаётся короткая записка.',
+            'Для всех остальных записка — случайные байты. Ваш кошелёк читает записки, узнаёт свою ключом просмотра и вычисляет закрытый ключ этого адреса. Никто другой не может ни того, ни другого.',
+          ],
+        },
+        {
+          h: 'Чего стелс-адресам обычно не хватает и что есть в me7',
+          list: [
+            'Газ. На новом адресе нет ETH, а пополнить его со своего адреса значит связать их между собой. В me7 USDC уходит по подписи, а газ платит сервис, поэтому ETH на таком адресе не нужен вообще.',
+            'Длинный адрес. Код занимает около 140 символов. В me7 он передаётся QR-кодом или кнопкой «копировать», а восемь цифр позволяют плательщику и получателю сверить, что код тот самый.',
+            'Отдельное приложение. Стелс-адреса лежат в том же балансе, что и остальные ваши USDC, и тратятся так же.',
+          ],
+        },
+        {
+          h: 'Как пользоваться',
+          steps: [
+            'Откройте «получить», выберите USDC в сети Base и переключитесь на stealth mode.',
+            'Покажите QR-код или скопируйте код и отправьте тому, кто вам платит. Один и тот же код можно дать многим.',
+            'Плательщик сканирует его или вставляет в поле получателя в me7, сверяет с вами восемь цифр и отправляет.',
+            'Деньги появляются в вашем балансе. Тратьте их как любые другие USDC.',
+          ],
+        },
+        {
+          h: 'Что стоит знать',
+          list: [
+            'Работает из me7 в me7. Стандарт (ERC-5564) открытый, и некоторые другие кошельки его поддерживают, так что пробовать можно, но пока мы советуем me7 с обеих сторон. Обычные кошельки и биржи код не поймут: им давайте сменяемый адрес.',
+            'Только USDC в сети Base. С Ledger недоступно: устройство не умеет подписывать ключом, который вычисляется на лету.',
+            'Это защита от посторонних глаз, а не анонимность. Суммы и время в блокчейне видны всегда; когда вы одним платежом тратите с нескольких стелс-адресов, они становятся связаны между собой.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Чем это отличается от сменяемого адреса?', a: 'Сменяемый адрес делает ваш кошелёк, и он годится для одного плательщика: каждому нужен свежий. Стелс-код даётся один раз всем, а адрес делает кошелёк плательщика. Смена адресов работает с любым кошельком, для стелс-кода плательщику нужен me7.' },
+        { q: 'Может ли тот, у кого есть мой код, видеть мои платежи?', a: 'Нет. По коду можно только заплатить вам. Чтобы найти платежи, нужен ваш ключ просмотра, чтобы потратить — ключ расходования; оба получаются из вашей фразы восстановления и не покидают браузер.' },
+        { q: 'Что будет, если я потеряю устройство?', a: 'Ничего не пропадёт. Ключи получаются из тех же 24 слов, что и весь кошелёк, а кошелёк заново прочитает блокчейн и найдёт платежи.' },
       ],
     },
   },

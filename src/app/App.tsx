@@ -29,7 +29,8 @@ export function App() {
   const [lang, setLang] = useState<Lang>(loadLang);
   const [screen, setScreen] = useState<Screen>('welcome');
   // Which part of the platform is shown. The account stays open underneath while another part is looked at.
-  const [section, setSection] = useState<Section>('finance');
+  // The pages about the wallet link to its parts by name: me7.network/#trading opens that part.
+  const [section, setSection] = useState<Section>(() => (location.hash === '#trading' ? 'trading' : 'finance'));
   const [wallet, setWallet] = useState<Wallet | null>(null);
   // A session opened with a Ledger instead of a key file: the device signs, nothing secret is in the page.
   const [cold, setCold] = useState<ColdSession | null>(null);

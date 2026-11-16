@@ -3,6 +3,7 @@ import { keccak_256 } from '@noble/hashes/sha3.js';
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils.js';
 import { abiEncode, address, array, bool, bytes, bytes32, encodeCall, tuple, uint, type AbiValue } from './abi.ts';
 import { isValidEvmAddress, toChecksumAddress } from './evm.ts';
+import { announceData, STEALTH_ANNOUNCER } from './stealth.ts';
 
 /**
  * Sending USDC without holding the network's coin.
@@ -125,10 +126,38 @@ export function allOrNothingWithValue(calls: readonly { to: string; value: bigin
 }
 
 /** What the pocket sends to the relay: the transfers, in the order they must happen, and the fee. */
+/** A note for the receiver of a stealth payment: the address paid, the once-used public key, and the standard's metadata. */
+export interface StealthNote {
+  stealthAddress: string;
+  /** Compressed public key, 0x-hex. */
+  ephemeralPubKey: string;
+  /** 0x-hex, the view tag first. */
+  metadata: string;
+}
+
 export interface GaslessRequest {
   chain: string;
   transfers: SignedAuthorization[];
   fee: SignedAuthorization;
+  /** Left with the announcer in the same operation as the payments they belong to. */
+  notes?: StealthNote[];
+}
+
+/** The most notes one operation may carry. */
+export const GASLESS_MAX_NOTES = 10;
+
+/** A note is carried only for an address this very operation pays, and only if it is shaped as the standard says. */
+function notesOk(request: GaslessRequest): boolean {
+  const notes = request.notes ?? [];
+  if (notes.length > GASLESS_MAX_NOTES) return false;
+  const paid = new Set(request.transfers.map((t) => t.to.toLowerCase()));
+  const seen = new Set<string>();
+  return notes.every((n) => {
+    const to = typeof n.stealthAddress === 'string' ? n.stealthAddress.toLowerCase() : '';
+    if (!paid.has(to) || seen.has(to)) return false;
+    seen.add(to);
+    return /^0x0[23][0-9a-fA-F]{64}$/.test(n.ephemeralPubKey) && /^0x([0-9a-fA-F]{2}){1,64}$/.test(n.metadata);
+  });
 }
 
 /** The most transfers one request may carry. */
@@ -195,6 +224,7 @@ export function checkGaslessRequest(request: GaslessRequest, rules: GaslessRules
     const all = [...transfers, fee];
     all.forEach(check);
     if (new Set(all.map((a) => `${a.from.toLowerCase()}:${a.nonce.toLowerCase()}`)).size !== all.length) return 'bad-request';
+    if (!notesOk(request)) return 'bad-request';
     const least = gaslessFee({ ...rules.pricing, perCall: rules.pricing.perCall / 2n }, transfers.length, countPayouts(transfers, fee));
     if (!same(fee.to, rules.feeReceiver) || fee.value < least) return 'bad-fee';
     for (const auth of all) {
@@ -209,7 +239,13 @@ export function checkGaslessRequest(request: GaslessRequest, rules: GaslessRules
 
 /** The transaction the relay sends: every permission carried out, in order, through Multicall3. */
 export function gaslessCall(token: string, request: GaslessRequest): { to: string; data: Uint8Array } {
-  return { to: MULTICALL3, data: allOrNothing([...request.transfers, request.fee].map((auth) => ({ to: token, data: authorizationCall(auth) }))) };
+  const moves = [...request.transfers, request.fee].map((auth) => ({ to: token, data: authorizationCall(auth) }));
+  // The notes go last: if a payment fails, the whole operation does, and no note is left for money that never moved.
+  const notes = (request.notes ?? []).map((n) => ({
+    to: STEALTH_ANNOUNCER,
+    data: announceData({ address: n.stealthAddress, ephemeralPubKey: hexToBytes(n.ephemeralPubKey.slice(2)) }, hexToBytes(n.metadata.slice(2))),
+  }));
+  return { to: MULTICALL3, data: allOrNothing([...moves, ...notes]) };
 }
 
 /**
