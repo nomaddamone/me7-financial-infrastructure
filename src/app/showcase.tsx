@@ -122,6 +122,12 @@ const FILMS: Record<string, readonly Draw[]> = {
     (c) => (ring(c, 30, 30, 11), ring(c, 30, 75, 11), ring(c, 30, 120, 11), dot(c, 120, 75, 24), ring(c, 208, 75, 20)),
     (c) => (ring(c, 30, 30, 11), ring(c, 30, 75, 11), ring(c, 30, 120, 11), ring(c, 120, 75, 18), dot(c, 208, 75, 24)),
   ],
+  // A stealth code: one code given to everybody, and each payer's money lands on a new address nobody knew before.
+  stealth: [
+    (c) => ([30, 75, 120].forEach((y) => dot(c, 30, y, 11)), box(c, 90, 50, 60, 50), text(c, 'st:', 120, 83, 19), [30, 75, 120].forEach((y) => box(c, 194, y - 13, 26, 26, 4))),
+    (c) => ([30, 75, 120].forEach((y) => (ring(c, 30, y, 10), line(c, [150, 75, 188, y], 4), box(c, 194, y - 13, 26, 26, 4))), box(c, 90, 50, 60, 50), dot(c, 120, 75, 12)),
+    (c) => ([30, 75, 120].forEach((y) => (ring(c, 30, y, 10), c.fillRect(192, y - 15, 30, 30))), box(c, 90, 50, 60, 50), text(c, 'st:', 120, 83, 19)),
+  ],
   // The key hidden inside an ordinary file.
   key: [
     (c) => (box(c, 50, 20, 140, 110), line(c, [62, 112, 96, 66, 118, 94, 140, 58, 178, 112]), dot(c, 160, 44, 9)),

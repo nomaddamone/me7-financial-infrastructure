@@ -28,6 +28,19 @@ describe('the address book', () => {
     expect(withContact([], { name: 'x'.repeat(100), address: 'T', asset: 'trx' }, '4')[0]!.name).toHaveLength(40);
   });
 
+  it('keeps a stealth code whole, and drops what is longer than any code', () => {
+    const data = store();
+    const code = `st:base:0x02${'ab'.repeat(32)}03${'cd'.repeat(32)}`;
+    expect(code).toHaveLength(142);
+    const list = withContact([], { name: 'Аня', address: code, asset: 'usdc-base' }, 's1');
+    saveContacts(OWNER, list);
+    expect(loadContacts(OWNER)).toEqual([{ id: 's1', name: 'Аня', address: code, asset: 'usdc-base' }]);
+    // The same code saved again is one contact, under the new name.
+    expect(withContact(list, { name: 'Anna', address: code.toUpperCase().replace('ST:BASE:0X', 'st:base:0x'), asset: 'usdc-base' }, 's2').map((c) => c.id)).toEqual(['s2']);
+    data.set(`me7.contacts.${OWNER.toLowerCase()}`, JSON.stringify([{ id: '1', name: 'long', address: 'x'.repeat(161), asset: 'usdc-base' }]));
+    expect(loadContacts(OWNER)).toEqual([]);
+  });
+
   it('drops anything malformed instead of showing it, and survives a browser without storage', () => {
     const data = store();
     data.set(`me7.contacts.${OWNER.toLowerCase()}`, JSON.stringify([{ id: '1', name: 'ok', address: '0x1', asset: 'eth' }, { id: 2, name: 'bad' }, null, { id: '3', name: '', address: 'x', asset: 'eth' }]));

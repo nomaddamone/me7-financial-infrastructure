@@ -662,7 +662,7 @@ const ru = {
     addTitle: 'новый контакт',
     name: 'название',
     coin: 'монета и сеть',
-    address: 'адрес',
+    address: 'адрес или стелс-код',
     add: 'добавить',
     remove: 'удалить',
     badName: 'Введите название контакта.',
@@ -745,6 +745,12 @@ const ru = {
         name: 'Транзитный адрес',
         text: 'Перед отправкой деньги собираются на новый одноразовый адрес и уходят уже с него, одной операцией.',
         usual: 'получатель видит адрес, с которого вы платите, и всё, что на нём есть.',
+      },
+      {
+        id: 'stealth',
+        name: 'Стелс-адреса',
+        text: 'Один постоянный код вместо адреса. Каждый, кто платит по нему из me7, платит на новый одноразовый адрес: заранее его не знал никто, а понять, что он ваш, можете только вы. Для USDC в Base, без газа.',
+        usual: 'один постоянный адрес, по которому видно всех, кто вам платил, и все суммы.',
       },
       {
         id: 'ledger',
@@ -1451,7 +1457,7 @@ const en: Dict = {
     addTitle: 'new contact',
     name: 'name',
     coin: 'coin and network',
-    address: 'address',
+    address: 'address or stealth code',
     add: 'add',
     remove: 'remove',
     badName: 'Enter a name for the contact.',
@@ -1534,6 +1540,12 @@ const en: Dict = {
         name: 'Transit address',
         text: 'Before sending, the money is gathered on a new one-time address and leaves from there, in one operation.',
         usual: 'the recipient sees the address you pay from and everything on it.',
+      },
+      {
+        id: 'stealth',
+        name: 'Stealth addresses',
+        text: 'One code that never changes, in place of an address. Everyone who pays by it from me7 pays to a new one-time address that nobody knew beforehand, and only you can tell it is yours. For USDC on Base, with no gas.',
+        usual: 'one standing address that shows everyone who ever paid you, and how much.',
       },
       {
         id: 'ledger',

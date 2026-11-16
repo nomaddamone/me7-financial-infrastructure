@@ -34,9 +34,10 @@ The only official address of me7 is **https://me7.network**. Anything else that 
 | **Transit address** | Money is gathered on a fresh one-time address and leaves from there, in one operation. |
 | **Cold signing** | With a Ledger the key never leaves the device. Every transfer is read on its screen; nothing is signed blind. |
 | **P2P cash-out** | USDC is sold straight to a person through the open Peer protocol. |
-| **Encrypted contacts** | The address book is encrypted in the browser with a key from your phrase before it goes anywhere. |
+| **Encrypted contacts** | The address book is encrypted in the browser with a key from your phrase before it goes anywhere. A contact can be an address or a stealth code. |
 | **Address screening** | Before USDC is sent, every address is checked against scam and sanctions lists. |
-| **Batch payment** | Several recipients in one operation: all of them are paid or none is. |
+| **Look-alike and freeze warnings** | An address made to pass for one you already pay to is called out before you send and hidden from the history. Before USDT moves on Tron, the token's own freeze list is asked about both sides. |
+| **Batch payment** | Several recipients in one operation: all of them are paid or none is. Stealth codes can be among them. |
 | **Names** | Sending to a name such as anna.base.eth, and a name of your own for the main address, paid in USDC. |
 | **Ten seconds to cancel** | After you confirm, a transfer waits ten seconds and can be cancelled; once sent, a receipt is shown. |
 | **Branded QR and scanner** | A receiving code with an eight-digit address code to compare by eye or by voice; a scanner that acts only on addresses and payment links. |
@@ -85,13 +86,13 @@ npm test
 npm run typecheck
 ```
 
-Sending USDC on Base without ETH and syncing contacts need me7's own service and work only on me7.network. Everything else works from a local copy.
+Sending USDC on Base without ETH, sending USDT on Tron without TRX and syncing contacts need me7's own service and work only on me7.network. Everything else works from a local copy.
 
 ## Where things are
 
 | Path | What is there |
 |---|---|
-| [`src/core`](src/core) | Keys and signing, with no network access: entropy, recovery phrase, key file, vault, HD derivation, EVM / Tron / Bitcoin transactions, Ledger, signed USDC permissions, address rotation, contact encryption, QR payloads. |
+| [`src/core`](src/core) | Keys and signing, with no network access: entropy, recovery phrase, key file, vault, HD derivation, EVM / Tron / Bitcoin transactions, Ledger, signed USDC permissions, address rotation, stealth addresses, the look-alike check, contact encryption, QR payloads. |
 | [`src/net`](src/net) | Everything that talks to the outside: nodes, balances, history, prices, swap, Peer. Every address the wallet may contact is in `endpoints.ts`. |
 | [`src/app`](src/app) | The interface: screens, texts in Russian and English, styles. |
 | [`test`](test) | Tests of all of the above. |

@@ -87,7 +87,7 @@ export const HUB: Page = {
           'A payer sees their own transfer, not your whole balance: the wallet hands out a new address after every payment received.',
           'Stealth mode: one code that never changes, and every payer who uses it from me7 pays to a new address only you can find.',
           'Under pressure you can open a second, empty vault with a different password.',
-          'A transfer is hard to send to the wrong place: an eight-digit address code to compare with the recipient, ten seconds to cancel after you confirm, and a receipt once it is sent.',
+          'A transfer is hard to send to the wrong place: an eight-digit address code to compare with the recipient, ten seconds to cancel after you confirm, and a receipt once it is sent. The wallet also warns about a look-alike of an address you know and about a USDT address that has been frozen.',
           'You can pay to a name such as anna.base.eth instead of forty characters, and take a name for your own address.',
           'The code is public, and one command checks that the site serves exactly that code.',
         ],
@@ -143,7 +143,7 @@ export const HUB: Page = {
           'Плательщик видит только свой перевод, а не весь ваш баланс: после каждого поступления кошелёк выдаёт новый адрес.',
           'Stealth mode: один постоянный код, и каждый, кто платит по нему из me7, платит на новый адрес, который можете найти только вы.',
           'Под давлением можно открыть второй, пустой сейф другим паролем.',
-          'Перевод трудно отправить не туда: восьмизначный код адреса для сверки с получателем, десять секунд на отмену после подтверждения и отчёт после отправки.',
+          'Перевод трудно отправить не туда: восьмизначный код адреса для сверки с получателем, десять секунд на отмену после подтверждения и отчёт после отправки. Кошелёк также предупредит о подделке под знакомый адрес и о замороженном адресе USDT.',
           'Платить можно на имя вроде anna.base.eth вместо сорока символов, а для своего адреса взять собственное имя.',
           'Код открыт, и одна команда проверяет, что сайт отдаёт именно его.',
         ],
@@ -677,6 +677,7 @@ export const PAGES: Page[] = [
       faq: [
         { q: 'Do I have to back up every new address?', a: 'No. All addresses come from the same key. Your key file or 24 words restore all of them.' },
         { q: 'Can I still use one fixed address?', a: 'Yes. The main address of the wallet never changes and can be used for ETH, tokens and anything that needs a permanent address.' },
+        { q: 'What if I need one thing to give to many payers?', a: 'Use stealth mode. It gives you one code that never changes, and every payer who uses it from me7 pays to a new address only you can find. It works from me7 to me7; for other wallets and exchanges keep the rotating address.' },
         { q: 'Will another wallet see money on these addresses?', a: 'They are standard addresses derived from your 24 words, so the money is recoverable, but a wallet that looks only at the first address will not show the rest by itself.' },
       ],
     },
@@ -719,6 +720,7 @@ export const PAGES: Page[] = [
       faq: [
         { q: 'Нужно ли сохранять каждый новый адрес?', a: 'Нет. Все адреса выводятся из одного ключа. Файл-ключ или 24 слова восстанавливают их все.' },
         { q: 'Можно ли пользоваться одним постоянным адресом?', a: 'Да. Основной адрес кошелька не меняется, им можно пользоваться для ETH, токенов и всего, где нужен постоянный адрес.' },
+        { q: 'А если нужен один реквизит сразу для многих плательщиков?', a: 'Включите stealth mode. Он даёт один постоянный код, и каждый, кто платит по нему из me7, платит на новый адрес, который можете найти только вы. Работает из me7 в me7; другим кошелькам и биржам по-прежнему давайте сменяемый адрес.' },
         { q: 'Увидит ли другой кошелёк деньги на этих адресах?', a: 'Это стандартные адреса из ваших 24 слов, так что деньги восстановимы, но кошелёк, который смотрит только на первый адрес, остальные сам не покажет.' },
       ],
     },
@@ -1160,6 +1162,7 @@ export const PAGES: Page[] = [
             'Show the QR code or copy the code and send it to whoever pays you. The same code can go to many people.',
             'The payer scans it or pastes it into the recipient field in me7, checks the eight digits with you, and sends.',
             'The money appears in your balance. Spend it like any other USDC.',
+            'Someone you pay often? Save their code as a contact: it is then one tap away when sending, and it can be paid in a batch together with ordinary addresses.',
           ],
         },
         {
@@ -1207,6 +1210,7 @@ export const PAGES: Page[] = [
             'Покажите QR-код или скопируйте код и отправьте тому, кто вам платит. Один и тот же код можно дать многим.',
             'Плательщик сканирует его или вставляет в поле получателя в me7, сверяет с вами восемь цифр и отправляет.',
             'Деньги появляются в вашем балансе. Тратьте их как любые другие USDC.',
+            'Часто платите одному человеку? Сохраните его код в контакты: при отправке он выбирается одним нажатием, и ему можно платить в рассылке вместе с обычными адресами.',
           ],
         },
         {

@@ -75,7 +75,7 @@ import { loadHistory, paidAddresses, portfolioSeries, rememberPaid, type History
 import { lookalikeOf } from '../core/lookalike.ts';
 import { STEALTH_INDEX } from './stealth.ts';
 import { parseStealthCode, stealthAddressFor, stealthCode, stealthKeys, stealthMetaAddress, tokenMetadata } from '../core/stealth.ts';
-import type { StealthNote } from '../core/gasless.ts';
+import { GASLESS_MAX_NOTES, type StealthNote } from '../core/gasless.ts';
 import { closeWallet, isSessionPassword, openWallet, withBitcoinKey, withEvmKey, withTronKey, type Wallet } from './wallet.ts';
 import './home.css';
 
@@ -1211,6 +1211,11 @@ function Contacts({ t, wallet, onClose, onMulti }: { t: Dict; wallet: Wallet; on
     });
   }, [wallet]);
   useEffect(sync, [sync]);
+  // A stealth code in the field settles the coin: it pays USDC on Base and nothing else.
+  useEffect(() => {
+    const usdc = ASSETS.find(isRotated);
+    if (usdc && parseStealthCode(address.trim())) setAssetId(usdc.id);
+  }, [address]);
   const store = (next: Contact[]) => {
     setContacts(next);
     saveContacts(wallet.evm, next);
@@ -1222,8 +1227,12 @@ function Contacts({ t, wallet, onClose, onMulti }: { t: Dict; wallet: Wallet; on
     const a = ASSETS.find((x) => x.id === assetId);
     if (!a) return;
     if (!name.trim()) return setError(b.badName);
-    if (!isValidRecipient(a, address.trim())) return setError(t.badAddress);
-    store(withContact(contacts, { name, address, asset: a.id }, hexOf(crypto.getRandomValues(new Uint8Array(8)))));
+    // A stealth code is kept as it is: the address is made anew at every payment. It pays USDC on Base and nothing else.
+    const code = parseStealthCode(address.trim());
+    const coin = code ? ASSETS.find(isRotated) : a;
+    if (!coin) return setError(t.stealth.onlyUsdc);
+    if (!code && !isValidRecipient(coin, address.trim())) return setError(t.badAddress);
+    store(withContact(contacts, { name, address, asset: coin.id }, hexOf(crypto.getRandomValues(new Uint8Array(8)))));
     setName('');
     setAddress('');
     setError('');
@@ -1244,7 +1253,8 @@ function Contacts({ t, wallet, onClose, onMulti }: { t: Dict; wallet: Wallet; on
                     <span>
                       {c.name}{' '}
                       <span class="dim">
-                        {a ? `${a.ticker} ${a.net}` : c.asset} · {shortAddress(c.address)}
+                        {a ? `${a.ticker} ${a.net}` : c.asset} · {parseStealthCode(c.address) ? 'stealth ' : ''}
+                        {shortAddress(c.address)}
                       </span>
                     </span>
                   </span>
@@ -1298,7 +1308,7 @@ function Contacts({ t, wallet, onClose, onMulti }: { t: Dict; wallet: Wallet; on
   );
 }
 
-type Batch = { asset: AssetDef; rows: { contact: Contact; value: bigint }[]; fee: bigint } & ({ kind: 'relay'; plan: PaymentPlan } | { kind: 'each'; prepared: Exclude<Prepared, { kind: 'gasless' }>[] });
+type Batch = { asset: AssetDef; rows: { contact: Contact; value: bigint }[]; fee: bigint } & ({ kind: 'relay'; plan: PaymentPlan; notes: StealthNote[] } | { kind: 'each'; prepared: Exclude<Prepared, { kind: 'gasless' }>[] });
 
 /**
  * Paying several contacts at once. USDC on Base goes to all of them in one
@@ -1349,10 +1359,21 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
       if (isRotated(asset)) {
         const [rotation, pricing] = await Promise.all([loadRotation(wallet, true), fetchRelayPricing()]);
         if (!pricing) throw new Problem('noRelay');
-        const plan = planPayment(rotation.holdings, rows.map((r) => ({ to: r.contact.address, value: r.value })), pricing, rotation.fresh);
+        // A contact kept as a stealth code is paid on an address made here and now, with a note for its owner in the same operation.
+        const notes: StealthNote[] = [];
+        const payouts = rows.map((r) => {
+          const target = parseStealthCode(r.contact.address);
+          if (!target) return { to: r.contact.address, value: r.value };
+          if (!NET.base) throw new Problem('noRelay');
+          const paid = stealthAddressFor(target, crypto.getRandomValues(new Uint8Array(32)));
+          notes.push({ stealthAddress: paid.address, ephemeralPubKey: hexOf(paid.ephemeralPubKey), metadata: hexOf(tokenMetadata(paid.viewTag, NET.base.usdc, r.value)) });
+          return { to: paid.address, value: r.value };
+        });
+        if (notes.length > GASLESS_MAX_NOTES) throw new Problem('tooMany');
+        const plan = planPayment(rotation.holdings, payouts, pricing, rotation.fresh);
         if (plan === 'no-funds') throw new Problem('noFunds');
         if (plan === 'too-many') throw new Problem('tooMany');
-        setBatch({ kind: 'relay', asset, rows, fee: plan.fee, plan });
+        setBatch({ kind: 'relay', asset, rows, fee: plan.fee, plan, notes });
       } else {
         const evm = networkOf(asset) === 'evm';
         const first = evm ? await fetchEvmNonce(evmOf(asset).rpc, wallet.evm) : 0n;
@@ -1391,7 +1412,7 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
     setStep('sending');
     const ids: string[] = [];
     try {
-      if (batch.kind === 'relay') ids.push(await sendPlan(wallet, batch.plan));
+      if (batch.kind === 'relay') ids.push(await sendPlan(wallet, batch.plan, batch.notes));
       else for (const one of batch.prepared) ids.push(await executeTransfer(wallet, one));
       setSent(ids);
       setStep('done');

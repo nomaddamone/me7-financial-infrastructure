@@ -3,7 +3,8 @@ import { pullSync, pushSync } from '../net/sync.ts';
 
 /**
  * The address book: named addresses the user pays often. Each contact is an
- * address for one coin on one network. It is kept in this browser and, so that
+ * address for one coin on one network; for USDC on Base it may be a stealth
+ * code instead, from which a new address is made at every payment. It is kept in this browser and, so that
  * it follows the user to another device, encrypted on me7's store under keys
  * that come from the seed (see src/core/sync.ts). It is not part of the key file.
  */
@@ -16,6 +17,8 @@ export interface Contact {
 }
 
 export const CONTACT_NAME_MAX = 40;
+/** Room for the longest thing kept as an address: a stealth code, 142 characters. */
+export const CONTACT_ADDRESS_MAX = 160;
 const key = (owner: string) => `me7.contacts.${owner.toLowerCase()}`;
 
 /** Contacts as stored; anything malformed is dropped rather than shown. */
@@ -24,7 +27,7 @@ function sanitize(raw: unknown): Contact[] {
   return raw.flatMap((item) => {
     const c = item as Partial<Contact> | null;
     const ok = c && typeof c.id === 'string' && typeof c.name === 'string' && typeof c.address === 'string' && typeof c.asset === 'string';
-    if (!ok || !c.name || c.name.length > CONTACT_NAME_MAX || (c.address ?? '').length > 120) return [];
+    if (!ok || !c.name || c.name.length > CONTACT_NAME_MAX || (c.address ?? '').length > CONTACT_ADDRESS_MAX) return [];
     return [{ id: c.id, name: c.name, address: c.address, asset: c.asset } as Contact];
   });
 }
