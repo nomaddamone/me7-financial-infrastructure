@@ -1796,6 +1796,7 @@ function AssetView({
   a,
   wallet,
   units,
+  stealthPart,
   prices,
   history,
   historyDown,
@@ -1810,6 +1811,8 @@ function AssetView({
   a: AssetDef;
   wallet: Wallet;
   units: bigint | null;
+  /** How much of the balance came by the stealth code; zero for every coin but USDC on Base. */
+  stealthPart: bigint;
   prices: UsdPrices | null;
   history: History | null;
   historyDown: boolean;
@@ -1904,6 +1907,7 @@ function AssetView({
           )}
         </div>
         <div class="delta">{units !== null && prices ? `≈ ${usdFormat.format(usdValue(a, units, prices))}` : ''}</div>
+        {units !== null && stealthPart > 0n && <div class="delta">{t.pockets.part.replace('{sum}', amountText(a, stealthPart))}</div>}
         <div class="actions actions--two">
           <button class="btn btn--accent" onClick={onSend}>
             {t.send}
@@ -2176,6 +2180,7 @@ function Pocket({
         a={selected}
         wallet={wallet}
         units={units(selected)}
+        stealthPart={isRotated(selected) ? stealthPart : 0n}
         prices={prices}
         history={history}
         historyDown={historyDown}
@@ -2188,6 +2193,7 @@ function Pocket({
       />
     );
   }
+  const rotated = ASSETS.find(isRotated);
   const known = ASSETS.every((a) => units(a) !== null);
   const total = known && prices ? ASSETS.reduce((sum, a) => sum + usdValue(a, units(a) ?? 0n, prices), 0) : null;
   const stuck = !known && failed.length > 0;
@@ -2284,6 +2290,9 @@ function Pocket({
             <Spinner />
           )}
         </button>
+        {stealthPart > 0n && rotated && prices && !hover && (
+          <div class="delta">{t.pockets.part.replace('{sum}', mask(usdFormat.format(usdValue(rotated, stealthPart, prices))))}</div>
+        )}
         <div class="delta">
           {points && hidden ? (
             <span class="dim">{t.periodNames[periodIndex]}</span>
@@ -2383,6 +2392,7 @@ function Pocket({
                       <>
                         {hidden ? '••••' : <Scramble text={amountText(head, g.total)} />}
                         <span class="dim asset-usd">{prices ? `≈ ${mask(usdFormat.format(g.usd))}` : ''}</span>
+                        {rotated && stealthPart > 0n && g.items.includes(rotated) && <span class="dim asset-usd">{t.pockets.part.replace('{sum}', mask(amountText(rotated, stealthPart)))}</span>}
                         {single?.kind === 'btc' && pending !== 0n && (
                           <span class="dim asset-usd">
                             {t.pending} {mask(amountText(single, pending))}
