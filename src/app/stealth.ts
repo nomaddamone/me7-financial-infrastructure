@@ -1,3 +1,4 @@
+import { STEALTH_INDEX } from '../core/rotation.ts';
 import { matchAnnouncement, stealthKeys, stealthPrivateKey } from '../core/stealth.ts';
 import { NET } from '../net/endpoints.ts';
 import { fetchHeadBlock, scanStealth, type StealthFind } from '../net/stealth.ts';
@@ -9,9 +10,9 @@ import type { Wallet } from './wallet.ts';
  * this account, so it is nobody else's to see. Losing it loses nothing: the chain is read again.
  *
  * A stealth address takes its place among the wallet's USDC addresses under a number of its
- * own, far above any the seed's path will reach, so the two kinds are never confused.
+ * own (STEALTH_INDEX and up), so the two kinds are never confused.
  */
-export const STEALTH_INDEX = 1_000_000;
+export { STEALTH_INDEX };
 
 /** The block from which notes can concern this wallet: nobody could have paid by a code before the wallet showed one. */
 const BIRTH = { mainnet: 58_000_000, testnet: 0 } as const;

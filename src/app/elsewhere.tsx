@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { pocketOf } from '../core/rotation.ts';
 import { formatUnits } from '../net/balances.ts';
 import { loadRotation } from './addresses.ts';
 import type { Dict } from './i18n.ts';
@@ -14,7 +15,8 @@ export function UsdcElsewhere({ t, wallet }: { t: Dict; wallet: Wallet }) {
   useEffect(() => {
     let live = true;
     loadRotation(wallet).then(
-      (r) => live && setAmount(r.holdings.reduce((sum, h) => (h.index === 0 ? sum : sum + h.balance), 0n)),
+      // Stealth money is left out: it is not brought onto the main address, which would tie it to it.
+      (r) => live && setAmount(r.holdings.reduce((sum, h) => (h.index === 0 || pocketOf(h) === 'stealth' ? sum : sum + h.balance), 0n)),
       () => undefined,
     );
     return () => {

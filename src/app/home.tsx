@@ -24,7 +24,7 @@ import {
   type EvmTransaction,
 } from '../core/index.ts';
 import { gaslessFee, type GaslessPricing } from '../core/gasless.ts';
-import { isUsed, planAuthorizations, planCollect, planPayment, planSendAll, type PaymentPlan } from '../core/rotation.ts';
+import { isUsed, planAuthorizations, planCollect, planFromPockets, pocketOf, pocketTotals, type PaymentPlan, type Pocket, type PocketedPlan } from '../core/rotation.ts';
 import { fetchBitcoinBalance, fetchEvmBalance, formatUnits } from '../net/balances.ts';
 import { GASLESS, hostOf, NET, TRON_GASLESS } from '../net/endpoints.ts';
 import { parseName } from '../core/names.ts';
@@ -196,13 +196,15 @@ function AddressList({ t, wallet, rotation, prices, onChanged }: { t: Dict; wall
   const [showEmpty, setShowEmpty] = useState(false);
   const emptied = rotation.holdings.filter((h) => h.index !== 0 && h.index !== rotation.receive.index && isUsed(h) && h.balance === 0n);
   const shown = rotation.holdings.filter((h) => h.index === 0 || h.balance > 0n || h.index === rotation.receive.index || (showEmpty && isUsed(h)));
-  const elsewhere = rotation.holdings.filter((h) => h.index !== 0 && h.balance > 0n);
+  // Only the rotating addresses are brought onto the main one: stealth money moved there would be tied to it for all to see.
+  const elsewhere = rotation.holdings.filter((h) => h.index !== 0 && h.balance > 0n && pocketOf(h) === 'plain');
+  const hidden = pocketTotals(rotation.holdings).stealth;
 
   const prepare = async () => {
     setError('');
     const pricing = await fetchRelayPricing();
     if (!pricing) return setError(g.unavailable);
-    const next = planCollect((await loadRotation(wallet, true)).holdings, pricing);
+    const next = planCollect((await loadRotation(wallet, true)).holdings.filter((h) => pocketOf(h) === 'plain'), pricing);
     if (next === 'no-funds') return setError(t.noFunds);
     if (next === 'too-many') return setError(g.tooMany);
     setPlan(next);
@@ -244,6 +246,7 @@ function AddressList({ t, wallet, rotation, prices, onChanged }: { t: Dict; wall
         </button>
       )}
       <p class="note">{g.collectLead}</p>
+      {hidden > 0n && <p class="note">{t.pockets.collectNote.replace('{sum}', amountText(usdc, hidden))}</p>}
       {step === 'done' ? (
         <p class="note">{g.collectDone}</p>
       ) : step === 'review' && plan ? (
@@ -460,10 +463,11 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
   );
 }
 
+type ProblemCode = 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany' | 'frozenTo' | 'frozenMe' | 'needsMix' | 'pocketShort';
 /** A problem the user can fix, shown as a message on the form. */
 class Problem extends Error {
-  readonly code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany' | 'frozenTo' | 'frozenMe';
-  constructor(code: 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany' | 'frozenTo' | 'frozenMe') {
+  readonly code: ProblemCode;
+  constructor(code: ProblemCode) {
     super(code);
     this.code = code;
   }
@@ -479,7 +483,7 @@ interface PreparedBase {
 type Prepared =
   | (PreparedBase & { kind: 'evm'; tx: EvmTransaction })
   // USDC sent without ETH: the fee is in USDC, and me7's relay pays the gas.
-  | (PreparedBase & { kind: 'gasless'; plan: PaymentPlan; note?: StealthNote })
+  | (PreparedBase & { kind: 'gasless'; plan: PaymentPlan; from: PocketedPlan['from']; joined: number; note?: StealthNote })
   | (PreparedBase & { kind: 'btc'; plan: BitcoinSendPlan })
   // A Tron transaction expires a minute after it is built, so it is built at send time.
   | (PreparedBase & { kind: 'tron'; feeLimit: bigint; activates: boolean })
@@ -652,6 +656,11 @@ function Send({
   // The way out when the relay cannot be reached: USDC on the main address can still be sent the
   // ordinary way, paying gas in ETH, so that nobody's money waits on me7's server.
   const [byGas, setByGas] = useState(false);
+  // Which pocket pays: left to the wallet, or named by the user. Shown only to those who hold stealth money.
+  const [pocket, setPocket] = useState<'auto' | Pocket>('auto');
+  const [totals, setTotals] = useState<Record<Pocket, bigint> | null>(null);
+  // Joining the two pockets ties their addresses together: it is done only on a second press, for the same payment.
+  const [mixOk, setMixOk] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState('');
   // What kind of address is in the field. An address belongs to one family of networks, so the coins of the
@@ -702,6 +711,8 @@ function Send({
     setPricing(null);
     setRelayAsked(false);
     setByGas(false);
+    setTotals(null);
+    setPocket('auto');
     if (!viaRelay) return;
     let live = true;
     void fetchRelayPricing().then((prices) => {
@@ -709,6 +720,10 @@ function Send({
       setPricing(prices);
       setRelayAsked(true);
     });
+    loadRotation(wallet).then(
+      (r) => live && setTotals(pocketTotals(r.holdings)),
+      () => undefined,
+    );
     return () => {
       live = false;
     };
@@ -717,7 +732,7 @@ function Send({
   if (!asset) return null;
   const usd = (a: AssetDef, units: bigint) => (prices ? ` ≈ ${usdFormat.format(usdValue(a, units, prices))}` : '');
 
-  const prepareGasless = async (recipient: string, units: bigint | null): Promise<Prepared> => {
+  const prepareGasless = async (recipient: string, units: bigint | null, prefer: Pocket, mix: boolean): Promise<Prepared> => {
     // Balances and the price are read again at this moment: both may have moved since the form was opened.
     const [rotation, prices] = await Promise.all([loadRotation(wallet, true), fetchRelayPricing()]);
     if (!prices) {
@@ -728,13 +743,15 @@ function Send({
     }
     setPricing(prices);
     // The fee comes out of the same USDC, on top of what the recipient gets.
-    const plan =
-      units === null
-        ? planSendAll(rotation.holdings, recipient, prices, rotation.fresh)
-        : planPayment(rotation.holdings, [{ to: recipient, value: units }], prices, rotation.fresh);
-    if (plan === 'no-funds') throw new Problem('noFunds');
-    if (plan === 'too-many') throw new Problem('tooMany');
-    return { kind: 'gasless', asset, to: recipient, amount: plan.payouts[0]?.value ?? 0n, fee: plan.fee, plan };
+    setTotals(pocketTotals(rotation.holdings));
+    // Stealth money pays stealth codes and the rest pays ordinary addresses; the two are joined only when the user has agreed.
+    const planned = planFromPockets(rotation.holdings, units === null ? { all: recipient } : [{ to: recipient, value: units }], prices, rotation.fresh, { prefer, choice: pocket, mix });
+    if (planned === 'no-funds') throw new Problem('noFunds');
+    if (planned === 'too-many') throw new Problem('tooMany');
+    if (planned === 'needs-mix') throw new Problem('needsMix');
+    if (planned === 'pocket-short') throw new Problem('pocketShort');
+    const { plan, from, joined } = planned;
+    return { kind: 'gasless', asset, to: recipient, amount: plan.payouts[0]?.value ?? 0n, fee: plan.fee, plan, from, joined };
   };
 
   const prepare = async (e: Event) => {
@@ -765,6 +782,7 @@ function Send({
       setTwinAccepted(recipient);
       return setError(t.guard.lookalikeStop);
     }
+    const mixKey = `${to.trim()}|${all ? 'all' : amount.trim()}|${pocket}`;
     setStep('preparing');
     try {
       if (asset.contract === NET.tron.usdt) {
@@ -783,7 +801,7 @@ function Send({
                 return prepareTronless(wallet, asset, recipient, units);
               })
             : viaRelay && !byGas
-              ? await prepareGasless(recipient, units)
+              ? await prepareGasless(recipient, units, hidden ? 'stealth' : 'plain', mixOk === mixKey)
               : await prepareEvm(wallet, asset, recipient, units);
       // The note that lets the receiver find the payment travels with it, in the same operation.
       const note = hidden && ready.kind === 'gasless' && NET.base ? { stealthAddress: hidden.address, ephemeralPubKey: hidden.ephemeralPubKey, metadata: hexOf(tokenMetadata(hidden.viewTag, NET.base.usdc, ready.amount)) } : null;
@@ -792,8 +810,14 @@ function Send({
       setStep('review');
     } catch (err) {
       const code = err instanceof BitcoinSendError || err instanceof Problem ? err.code : '';
+      // The first press only says what joining the pockets means; the same payment pressed again goes ahead.
+      setMixOk(code === 'needsMix' ? mixKey : '');
       setError(
-        code === 'insufficient-funds' || code === 'noFunds'
+        code === 'needsMix'
+          ? t.pockets.mixStop
+          : code === 'pocketShort'
+            ? t.pockets.short.replace('{sum}', pocket === 'auto' ? '' : amountText(asset, (totals ?? { plain: 0n, stealth: 0n })[pocket]))
+            : code === 'insufficient-funds' || code === 'noFunds'
           ? t.noFunds
           : code === 'noGas'
             ? t.noGas
@@ -995,6 +1019,8 @@ function Send({
         {prepared.kind === 'tron' && prepared.activates && <p class="note">{t.tronNewAddress}</p>}
         {prepared.kind === 'tronless' && <p class="note">{t.tronless.note}</p>}
         {prepared.kind === 'gasless' && prepared.note && <p class="note">{t.stealth.reviewNote}</p>}
+        {prepared.kind === 'gasless' && prepared.from === 'both' && <p class="alert">{t.pockets.reviewMix}</p>}
+        {prepared.kind === 'gasless' && prepared.from !== 'both' && prepared.joined > 0 && <p class="note">{t.pockets.reviewJoined.replace('{n}', String(prepared.joined))}</p>}
         {prepared.kind === 'gasless' && (
           <p class="note">
             {prepared.plan.via && `${t.gasless.gathered.replace('{n}', String(prepared.plan.sources.length))} `}
@@ -1160,6 +1186,19 @@ function Send({
         </>
       ) : viaRelay ? (
         <>
+          {totals && totals.stealth > 0n && (
+            <div class="field">
+              <span class="field-label">{t.pockets.label}</span>
+              <span class="chips" role="radiogroup" aria-label={t.pockets.label}>
+                {(['auto', 'plain', 'stealth'] as const).map((p) => (
+                  <button key={p} type="button" role="radio" aria-checked={pocket === p} class={cls('chip', pocket === p && 'chip--on')} onClick={() => (setPocket(p), setError(''))}>
+                    {t.pockets[p]}
+                    {p !== 'auto' && <span class="dim"> {amountText(asset, totals[p])}</span>}
+                  </button>
+                ))}
+              </span>
+            </div>
+          )}
           <p class="note">
             {pricing ? t.gasless.note.replace('{fee}', amountText(asset, gaslessFee(pricing, 1, 1))) : relayAsked ? t.gasless.unavailable : '\u00a0'}{' '}
             <button type="button" class="linklike" onClick={() => setShowPolicy((v) => !v)}>
@@ -1308,7 +1347,7 @@ function Contacts({ t, wallet, onClose, onMulti }: { t: Dict; wallet: Wallet; on
   );
 }
 
-type Batch = { asset: AssetDef; rows: { contact: Contact; value: bigint }[]; fee: bigint } & ({ kind: 'relay'; plan: PaymentPlan; notes: StealthNote[] } | { kind: 'each'; prepared: Exclude<Prepared, { kind: 'gasless' }>[] });
+type Batch = { asset: AssetDef; rows: { contact: Contact; value: bigint }[]; fee: bigint } & ({ kind: 'relay'; plan: PaymentPlan; notes: StealthNote[]; from: PocketedPlan['from']; joined: number } | { kind: 'each'; prepared: Exclude<Prepared, { kind: 'gasless' }>[] });
 
 /**
  * Paying several contacts at once. USDC on Base goes to all of them in one
@@ -1327,6 +1366,7 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
   const [sent, setSent] = useState<string[]>([]);
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [mixOk, setMixOk] = useState('');
   const asset = assets.find((a) => a.id === assetId) ?? assets[0];
   if (!asset) {
     return (
@@ -1354,6 +1394,7 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
       rows.push({ contact, value });
     }
     if (rows.length === 0) return setError(b.noRows);
+    const mixKey = rows.map((r) => `${r.contact.id}:${r.value}`).join('|');
     setStep('preparing');
     try {
       if (isRotated(asset)) {
@@ -1370,10 +1411,13 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
           return { to: paid.address, value: r.value };
         });
         if (notes.length > GASLESS_MAX_NOTES) throw new Problem('tooMany');
-        const plan = planPayment(rotation.holdings, payouts, pricing, rotation.fresh);
-        if (plan === 'no-funds') throw new Problem('noFunds');
-        if (plan === 'too-many') throw new Problem('tooMany');
-        setBatch({ kind: 'relay', asset, rows, fee: plan.fee, plan, notes });
+        // A run made only of stealth codes is paid with stealth money first; any other with the rest. The pockets are joined only on a second press.
+        const planned = planFromPockets(rotation.holdings, payouts, pricing, rotation.fresh, { prefer: notes.length === rows.length ? 'stealth' : 'plain', choice: 'auto', mix: mixOk === mixKey });
+        if (planned === 'no-funds') throw new Problem('noFunds');
+        if (planned === 'too-many') throw new Problem('tooMany');
+        if (planned === 'needs-mix') throw new Problem('needsMix');
+        if (planned === 'pocket-short') throw new Problem('noFunds');
+        setBatch({ kind: 'relay', asset, rows, fee: planned.plan.fee, plan: planned.plan, notes, from: planned.from, joined: planned.joined });
       } else {
         const evm = networkOf(asset) === 'evm';
         const first = evm ? await fetchEvmNonce(evmOf(asset).rpc, wallet.evm) : 0n;
@@ -1395,7 +1439,8 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
       setStep('review');
     } catch (err) {
       const code = err instanceof Problem ? err.code : '';
-      setError(code === 'noFunds' ? t.noFunds : code === 'noGas' ? t.noGas : code === 'noRelay' ? t.gasless.unavailable : code === 'tooMany' ? t.gasless.tooMany : t.nodesDown);
+      setMixOk(code === 'needsMix' ? mixKey : '');
+      setError(code === 'needsMix' ? t.pockets.mixStop : code === 'noFunds' ? t.noFunds : code === 'noGas' ? t.noGas : code === 'noRelay' ? t.gasless.unavailable : code === 'tooMany' ? t.gasless.tooMany : t.nodesDown);
       setStep('form');
     }
   };
@@ -1516,6 +1561,8 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
         <p class="note">
           {batch.kind === 'relay' ? `${batch.plan.via ? `${t.gasless.gathered.replace('{n}', String(batch.plan.sources.length))} ` : ''}${b.multiUsdc}` : b.multiEach}
         </p>
+        {batch.kind === 'relay' && batch.from === 'both' && <p class="alert">{t.pockets.reviewMix}</p>}
+        {batch.kind === 'relay' && batch.from !== 'both' && batch.joined > 0 && <p class="note">{t.pockets.reviewJoined.replace('{n}', String(batch.joined))}</p>}
         <p class="alert">{t.reviewNote}</p>
         <label class="field">
           <span class="field-label">{t.confirmPassword}</span>
@@ -1996,6 +2043,8 @@ function Pocket({
   }, [home]);
   const [balances, setBalances] = useState<Balances>({});
   const [pending, setPending] = useState(0n);
+  // How much of the USDC on Base came by the stealth code: shown under the one balance.
+  const [stealthPart, setStealthPart] = useState(0n);
   const [failed, setFailed] = useState<string[]>([]);
   const [prices, setPrices] = useState<UsdPrices | null>(null);
   const [nodes, setNodes] = useState<string[]>([]);
@@ -2052,6 +2101,7 @@ function Pocket({
       return next;
     });
     setFailed(results.flatMap((r, i) => (r.status === 'rejected' && ASSETS[i] ? [ASSETS[i].id] : [])));
+    if (NET.base) void loadRotation(wallet).then((r) => setStealthPart(pocketTotals(r.holdings).stealth), () => undefined);
     results.forEach((r, i) => {
       if (ASSETS[i]?.kind === 'btc' && r.status === 'fulfilled') setPending(r.value.pending);
     });
@@ -2361,6 +2411,7 @@ function Pocket({
                                 <>
                                   {mask(amountText(a, held))}
                                   <span class="dim asset-usd">{prices ? `≈ ${mask(usdFormat.format(usdValue(a, held, prices)))}` : ''}</span>
+                                  {isRotated(a) && stealthPart > 0n && <span class="dim asset-usd">{t.pockets.part.replace('{sum}', mask(amountText(a, stealthPart)))}</span>}
                                 </>
                               )}
                             </span>

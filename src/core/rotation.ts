@@ -138,6 +138,89 @@ export function planCollect(holdings: readonly Holding[], pricing: GaslessPricin
   return { sources: others.map((holding) => ({ holding, value: holding.balance })), via: { index: 0, address: main.address }, payouts: [], fee, transfers: others.length };
 }
 
+/**
+ * Two pockets, one balance.
+ *
+ * Money that came by the stealth code sits on addresses nobody can tie to the wallet. Spent in one
+ * operation with the rotating addresses, they would be tied to them for good, and the code would
+ * have hidden nothing. So the two kinds are kept apart: a payment is drawn from one pocket, and
+ * the two are joined only when the user has been told and has said so.
+ *
+ * A stealth address takes a number of its own, far above any the seed's path will reach.
+ */
+export const STEALTH_INDEX = 1_000_000;
+export type Pocket = 'plain' | 'stealth';
+export const pocketOf = (h: Holding): Pocket => (h.index >= STEALTH_INDEX ? 'stealth' : 'plain');
+
+/** What each pocket holds. */
+export function pocketTotals(holdings: readonly Holding[]): Record<Pocket, bigint> {
+  const totals = { plain: 0n, stealth: 0n };
+  for (const h of holdings) totals[pocketOf(h)] += h.balance;
+  return totals;
+}
+
+export interface PocketedPlan {
+  plan: PaymentPlan;
+  /** Where the money is taken from; 'both' only when joining the pockets was allowed. */
+  from: Pocket | 'both';
+  /** How many stealth addresses this operation ties to each other: none, or two and more. */
+  joined: number;
+}
+
+/** 'needs-mix': only both pockets together hold enough. 'pocket-short': the pocket named does not hold enough. */
+export type PocketProblem = PlanProblem | 'needs-mix' | 'pocket-short';
+
+/**
+ * Decide where the money comes from, pocket by pocket.
+ *
+ * Left to itself (`choice: 'auto'`), the wallet tries the pocket that suits the payment first
+ * (`prefer`: stealth money for a payment by a stealth code, the rest for an ordinary address),
+ * then the other one, and never the two together unless `mix` says the user has agreed.
+ * With a pocket named, only that pocket is used. `what` is the payouts, or `{ all }` to send
+ * everything there is to one recipient.
+ */
+export function planFromPockets(
+  holdings: readonly Holding[],
+  what: readonly Payout[] | { all: string },
+  pricing: GaslessPricing,
+  fresh: { index: number; address: string },
+  options: { prefer: Pocket; choice: 'auto' | Pocket; mix: boolean },
+): PocketedPlan | PocketProblem {
+  const everything = !Array.isArray(what);
+  const make = (from: readonly Holding[]) => (everything ? planSendAll(from, (what as { all: string }).all, pricing, fresh) : planPayment(from, what as readonly Payout[], pricing, fresh));
+  const of = (pocket: Pocket) => holdings.filter((h) => pocketOf(h) === pocket);
+  const wrap = (plan: PaymentPlan): PocketedPlan => {
+    const used = new Set(plan.sources.map((s) => pocketOf(s.holding)));
+    const stealth = plan.sources.filter((s) => pocketOf(s.holding) === 'stealth').length;
+    return { plan, from: used.size > 1 ? 'both' : used.has('stealth') ? 'stealth' : 'plain', joined: stealth > 1 ? stealth : 0 };
+  };
+  if (options.choice !== 'auto') {
+    const plan = make(of(options.choice));
+    return typeof plan === 'string' ? (plan === 'no-funds' ? 'pocket-short' : plan) : wrap(plan);
+  }
+  const other: Pocket = options.prefer === 'plain' ? 'stealth' : 'plain';
+  let tooMany = false;
+  if (everything) {
+    // Everything means both pockets, when both hold something: that is a joining like any other.
+    const totals = pocketTotals(holdings);
+    const funded = ([options.prefer, other] as const).filter((p) => totals[p] > 0n);
+    if (funded.length === 1) {
+      const plan = make(of(funded[0] as Pocket));
+      return typeof plan === 'string' ? plan : wrap(plan);
+    }
+  } else {
+    for (const pocket of [options.prefer, other]) {
+      const plan = make(of(pocket));
+      if (typeof plan !== 'string') return wrap(plan);
+      if (plan === 'too-many') tooMany = true;
+    }
+  }
+  const plan = make(holdings);
+  if (typeof plan === 'string') return tooMany ? 'too-many' : plan;
+  const joint = wrap(plan);
+  return joint.from === 'both' && !options.mix ? 'needs-mix' : joint;
+}
+
 /** A permission still to be signed, and which of the wallet's addresses must sign it. */
 export type Unsigned = Authorization & { index: number };
 

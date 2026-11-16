@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Unsigned } from '../core/rotation.ts';
-import { firstSpendNonce } from '../core/rotation.ts';
+import { firstSpendNonce, pocketOf } from '../core/rotation.ts';
 import { isIssuableLabel } from '../core/names.ts';
 import { addressCode } from '../core/payqr.ts';
 import { formatUnits } from '../net/balances.ts';
@@ -64,7 +64,8 @@ export function Naming({ t, wallet, onClose }: { t: Dict; wallet: Wallet; onClos
       if (!base) throw new Error('no Base network');
       // The fee comes from one address that holds enough: the smallest such, so the least is shown.
       const { holdings } = await loadRotation(wallet, true);
-      const payer = holdings.filter((h) => h.balance >= ready.fee).sort((a, b) => (a.balance < b.balance ? -1 : 1))[0];
+      // A rotating address is taken before a stealth one: the name is for the main address, and a stealth address paying for it would be tied to it.
+      const payer = holdings.filter((h) => h.balance >= ready.fee).sort((a, b) => (pocketOf(a) !== pocketOf(b) ? (pocketOf(a) === 'plain' ? -1 : 1) : a.balance < b.balance ? -1 : 1))[0];
       if (!payer) {
         setError(n.noFunds.replace('{fee}', usdc(ready.fee)));
         return setStep('review');
