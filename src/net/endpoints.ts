@@ -264,6 +264,35 @@ export const TRON_GASLESS = {
   lifetime: 600_000,
 } as const;
 
+/**
+ * Paying USDT on Tron out of USDC on Base. The two are different networks, so the money crosses
+ * through a third party: NEAR Intents (its 1Click service). The wallet sends USDC to an address
+ * the service names, and the service delivers USDT to a new Tron address of this wallet. While it
+ * crosses, the money is in the service's hands: this is said on the screen before anything is sent.
+ */
+export const CROSS = {
+  api: 'https://1click.chaindefuser.com/v0',
+  /** The service's names for USDC on Base and USDT on Tron. */
+  origin: 'nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near',
+  destination: 'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near',
+  /** How far the price may move while the money is on its way, in hundredths of a percent. */
+  slippageBps: 50,
+  /** The most the service may ask over what it delivers: two percent and two dollars. A dearer quote is refused. */
+  maxOverBps: 200n,
+  maxOverFlat: 2_000_000n,
+  /** The least worth sending this way, in USDT's units: below it the fixed costs eat the payment. */
+  min: 5_000_000n,
+  /** How long the service is given to deliver before it must send the USDC back, in milliseconds. */
+  lifetime: 3_600_000,
+  /**
+   * me7's own fees for a crossing, set by the owner on 2026-11-16: 0.5 USDC for sending the USDC (not 1) and
+   * 1 USDT for paying the USDT on (not 1.5). They hold for this kind of payment only: me7's service asks the
+   * crossing service whether the payment is one, and otherwise wants its ordinary fee.
+   */
+  baseFee: 500_000n,
+  tronService: 1_000_000n,
+} as const;
+
 /** Tron addresses under sanctions, one per line: the list the Tron side of the service refuses to serve. */
 export const TRON_BLOCKED_LIST = 'https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_TRX.txt';
 
@@ -307,6 +336,7 @@ export const ALL_ENDPOINTS: readonly string[] = [
   PEER_API,
   PEER_INDEXER,
   SWAP_API,
+  CROSS.api,
   MARKET_API,
   MARKET_WS,
   PRICE_LLAMA,

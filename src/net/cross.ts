@@ -1,0 +1,36 @@
+import { crossQuoteRequest, readCrossQuote, readCrossStatus, type CrossLimits, type CrossOrder, type CrossQuote, type CrossState } from '../core/cross.ts';
+
+async function ask(url: string, init?: RequestInit): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return (await res.json()) as unknown;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Ask the crossing service about an order. `dry` only asks the price; otherwise the service makes
+ * an address to pay to. Throws when the service does not answer, or answers something other than
+ * this very order at a sane price.
+ */
+export async function fetchCrossQuote(api: string, order: CrossOrder, dry: boolean, limits: CrossLimits): Promise<CrossQuote> {
+  const answer = await ask(`${api}/quote`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(crossQuoteRequest(order, dry)) });
+  return readCrossQuote(answer, order, dry, limits);
+}
+
+/** Tell the service which transaction carries the deposit, so it need not find it by itself. Its failure changes nothing. */
+export async function tellCrossDeposit(api: string, depositAddress: string, txHash: string): Promise<void> {
+  await ask(`${api}/deposit/submit`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ txHash, depositAddress }) }).catch(() => undefined);
+}
+
+/** Where the crossing paid to this address stands. Null when the service does not say. */
+export async function fetchCrossState(api: string, depositAddress: string): Promise<CrossState | null> {
+  try {
+    return readCrossStatus(await ask(`${api}/status?depositAddress=${depositAddress}`));
+  } catch {
+    return null;
+  }
+}

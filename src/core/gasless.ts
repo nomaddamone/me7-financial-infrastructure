@@ -141,6 +141,8 @@ export interface GaslessRequest {
   fee: SignedAuthorization;
   /** Left with the announcer in the same operation as the payments they belong to. */
   notes?: StealthNote[];
+  /** The payment goes into a crossing to Tron: the service checks that for itself and then takes its lower fee. */
+  cross?: boolean;
 }
 
 /** The most notes one operation may carry. */
@@ -187,6 +189,12 @@ const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 export function countPayouts(transfers: readonly Authorization[], fee: Authorization): number {
   const paid = transfers.filter((t, i) => !same(fee.from, t.to) && !transfers.slice(i + 1).some((later) => same(later.from, t.to)));
   return new Set(paid.map((t) => t.to.toLowerCase())).size;
+}
+
+/** The addresses a request pays, as opposed to those it only gathers money on (see countPayouts), lower case. */
+export function payoutAddresses(transfers: readonly Authorization[], fee: Authorization): string[] {
+  const paid = transfers.filter((t, i) => !same(fee.from, t.to) && !transfers.slice(i + 1).some((later) => same(later.from, t.to)));
+  return [...new Set(paid.map((t) => t.to.toLowerCase()))];
 }
 
 const CENT = 10_000n;

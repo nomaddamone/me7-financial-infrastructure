@@ -66,9 +66,9 @@ export async function withBitcoinKey<T>(wallet: Wallet, use: (privateKey: Uint8A
   }
 }
 
-/** Run `use` with the account's Tron private key, then wipe the key. */
-export async function withTronKey<T>(wallet: Wallet, use: (privateKey: Uint8Array) => T | Promise<T>): Promise<T> {
-  const key = deriveKey(wallet.seed, tronPath(0));
+/** Run `use` with the account's Tron private key (or that of its Tron address number `index`), then wipe the key. */
+export async function withTronKey<T>(wallet: Wallet, use: (privateKey: Uint8Array) => T | Promise<T>, index = 0): Promise<T> {
+  const key = deriveKey(wallet.seed, tronPath(index));
   try {
     return await use(key.privateKey);
   } finally {

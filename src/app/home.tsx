@@ -60,6 +60,8 @@ import { loadRotation, rotationOwners, signWithAddresses, type Rotation } from '
 import { AddressCode, AddressLine, BrandQr, Scanner } from './payqr.tsx';
 import { Hold } from './hold.tsx';
 import { Naming } from './naming.tsx';
+import { canCross, CrossPay } from './crosspay.tsx';
+import { openCrossings, type Crossing } from './crossing.ts';
 import { useOwnName } from './ownname.ts';
 import { addressCode } from '../core/payqr.ts';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
@@ -144,7 +146,7 @@ export function Qr({ text }: { text: string }) {
 }
 
 /** Sign a plan's permissions with the keys of the addresses involved and hand them to the relay. Returns the transaction hash. */
-async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[]): Promise<string> {
+export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[], cross = false): Promise<string> {
   const base = NET.base;
   if (!base) throw new Error('no Base network');
   const unsigned = planAuthorizations(plan, {
@@ -156,7 +158,7 @@ async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[]
   });
   const [fee, ...transfers] = signWithAddresses(wallet, { ...GASLESS.domain, chainId: base.chainId, contract: base.usdc }, [unsigned.fee, ...unsigned.transfers]);
   if (!fee) throw new Error('nothing to sign');
-  const hash = await relaySend({ chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}) });
+  const hash = await relaySend({ chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}), ...(cross ? { cross: true } : {}) });
   // What was just read about the addresses is out of date now.
   void loadRotation(wallet, true).catch(() => undefined);
   return hash;
@@ -661,6 +663,8 @@ function Send({
   const [totals, setTotals] = useState<Record<Pocket, bigint> | null>(null);
   // Joining the two pockets ties their addresses together: it is done only on a second press, for the same payment.
   const [mixOk, setMixOk] = useState('');
+  // USDT on Tron can also be paid out of USDC on Base, by way of a Tron address used once.
+  const [cross, setCross] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState('');
   // What kind of address is in the field. An address belongs to one family of networks, so the coins of the
@@ -1056,6 +1060,10 @@ function Send({
     );
   }
 
+  const crossable = asset.contract === NET.tron.usdt && canCross(wallet);
+  if (cross && crossable) {
+    return <CrossPay t={t} wallet={wallet} initialTo={dest.trim()} initialAmount={all ? '' : amount} onPlain={(a, v) => (setTo(a), setAmount(v), setCross(false))} onClose={onClose} />;
+  }
   const isToken = asset.kind === 'erc20' || asset.kind === 'trc20';
   // Contacts saved for this coin: one tap puts the address in.
   const saved = loadContacts(wallet.evm).filter((c) => c.asset === asset.id);
@@ -1084,6 +1092,19 @@ function Send({
           </button>
         ))}
       </div>
+      {crossable && (
+        <div class="field">
+          <span class="field-label">{t.cross.modeLabel}</span>
+          <span class="chips" role="radiogroup" aria-label={t.cross.modeLabel}>
+            <button type="button" role="radio" aria-checked={true} class="chip chip--on">
+              {t.cross.modePlain}
+            </button>
+            <button type="button" role="radio" aria-checked={false} class="chip" onClick={() => (setError(''), setCross(true))}>
+              {t.cross.modeCross}
+            </button>
+          </span>
+        </div>
+      )}
       <label class="field">
         <span class="field-label">
           {t.sendTo} <span class="dim">({asset.net})</span>
@@ -2034,7 +2055,7 @@ function Pocket({
   /** The vault was created just now, so being empty is expected. */
   fresh?: boolean;
 }) {
-  const [view, setView] = useState<'main' | 'send' | 'receive' | 'swap' | 'contacts' | 'multi'>('main');
+  const [view, setView] = useState<'main' | 'send' | 'receive' | 'swap' | 'contacts' | 'multi' | 'cross'>('main');
   // The asset opened from the list; send and receive started from its page come back to it.
   const [selected, setSelected] = useState<AssetDef | null>(null);
   // The payment opened from the feed or from an asset's page; closing it returns to where it was opened.
@@ -2046,6 +2067,8 @@ function Pocket({
     setOp(null);
   }, [home]);
   const [balances, setBalances] = useState<Balances>({});
+  // A payment of USDT out of USDC that was cut short: it is offered again until it is finished.
+  const [unfinished, setUnfinished] = useState<Crossing | null>(() => openCrossings(wallet)[0] ?? null);
   const [pending, setPending] = useState(0n);
   // How much of the USDC on Base came by the stealth code: shown under the one balance.
   const [stealthPart, setStealthPart] = useState(0n);
@@ -2157,6 +2180,20 @@ function Pocket({
       />
     );
   }
+  if (view === 'cross' && unfinished) {
+    return (
+      <CrossPay
+        t={t}
+        wallet={wallet}
+        resume={unfinished}
+        onClose={(sent) => {
+          setUnfinished(openCrossings(wallet)[0] ?? null);
+          setView('main');
+          if (sent) void refresh();
+        }}
+      />
+    );
+  }
   if (view === 'send') {
     return (
       <Send
@@ -2165,6 +2202,7 @@ function Pocket({
         prices={prices}
         initial={selected ?? undefined}
         onClose={(sent) => {
+          setUnfinished(openCrossings(wallet)[0] ?? null);
           setView('main');
           if (sent) void refresh();
         }}
@@ -2321,6 +2359,14 @@ function Pocket({
           </div>
         )}
         {history?.partial && <p class="note">{t.historyPartial}</p>}
+        {unfinished && (
+          <p class="alert cross-banner">
+            {t.cross.banner.replace('{sum}', formatUnits(BigInt(unfinished.amount), 6, 2)).replace('{to}', shortAddress(unfinished.to))}{' '}
+            <button class="linklike" onClick={() => setView('cross')}>
+              {t.cross.resume}
+            </button>
+          </p>
+        )}
         <div class="actions actions--two">
           <button class="btn btn--accent" onClick={() => setView('send')}>
             {t.send}

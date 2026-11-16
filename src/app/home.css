@@ -654,3 +654,23 @@
   outline: 2px solid var(--fg);
   outline-offset: 2px;
 }
+
+/* A payment that goes in steps: what is done, what is under way, what is still to come. */
+.cross-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--dim);
+}
+.cross-step--now,
+.cross-step--done {
+  color: var(--fg);
+}
+.cross-step--done::marker {
+  content: '✓ ';
+}
+.cross-steps a {
+  color: inherit;
+}
