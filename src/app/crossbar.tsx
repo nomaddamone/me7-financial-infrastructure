@@ -18,10 +18,9 @@ const STEP: Record<Exclude<BarPhase, 'halt'>, { from: number; to: number; pace: 
   done: { from: 1, to: 1, pace: 1 },
 };
 
-/** The fraction shown, and the seconds since the screen was opened. */
-export function useCrossProgress(phase: BarPhase): { p: number; seconds: number } {
+/** The fraction shown, and the seconds since the payment left (`since`, Unix milliseconds; nought until it has). */
+export function useCrossProgress(phase: BarPhase, since: number): { p: number; seconds: number } {
   const [tick, setTick] = useState(0);
-  const [began] = useState(() => Date.now());
   const [stepAt, setStepAt] = useState(() => Date.now());
   const [held, setHeld] = useState(0.06);
   useEffect(() => setStepAt(Date.now()), [phase]);
@@ -39,7 +38,7 @@ export function useCrossProgress(phase: BarPhase): { p: number; seconds: number 
   useEffect(() => {
     if (phase !== 'halt') setHeld(p);
   }, [tick, phase]);
-  return { p, seconds: Math.floor((Date.now() - began) / 1000) };
+  return { p, seconds: since > 0 ? Math.max(0, Math.floor((Date.now() - since) / 1000)) : 0 };
 }
 
 export function CrossBar({ phase, p, stops }: { phase: BarPhase; p: number; stops: readonly [string, string, string] }) {

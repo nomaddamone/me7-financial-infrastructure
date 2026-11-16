@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dropCrossing, loadCrossings, openCrossings, saveCrossing, tronAddressAt, type Crossing } from '../src/app/crossing.ts';
+import { dropCrossing, loadCrossings, oneTimeAddresses, openCrossings, saveCrossing, takeBack, tronAddressAt, type Crossing } from '../src/app/crossing.ts';
 import { openWallet } from '../src/app/wallet.ts';
 
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -57,5 +57,52 @@ describe('the record of payments that cross from Base to Tron', () => {
     expect(loadCrossings(wallet)).toEqual([]);
     vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ next: 4, list: [crossing(), { id: 'junk' }, crossing({ id: 'c', index: 0 })] }), setItem: () => undefined });
     expect(loadCrossings(wallet).map((c) => c.id)).toEqual(['a']);
+  });
+});
+
+describe("the wallet's one-time Tron addresses", () => {
+  const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+  /** Tron nodes that know which addresses hold USDT and which exist; they record which were asked about. */
+  function nodes(held: Record<string, bigint>, existing: string[], asked: string[] = []) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        const b = JSON.parse(String(init.body)) as { owner_address?: string; address?: string };
+        if (String(url).endsWith('/wallet/triggerconstantcontract')) {
+          asked.push(b.owner_address!);
+          return json({ result: { result: true }, constant_result: [(held[b.owner_address!] ?? 0n).toString(16).padStart(64, '0')] });
+        }
+        return json(existing.includes(b.address!) ? { address: b.address, balance: 1 } : {});
+      }),
+    );
+    return asked;
+  }
+  const at = (index: number) => tronAddressAt(wallet, index);
+
+  it('are found from the phrase and the chain alone, as on a device that has no notes', async () => {
+    // Number 1 was paid from and emptied to a remainder, number 2 exists but is empty, number 4 holds money; 3 and 5.. are untouched.
+    const asked = nodes({ [at(1)]: 265_063n, [at(4)]: 9_000_000n }, [at(1), at(2)]);
+    const other = { ...openWallet(MNEMONIC), evm: '0x1111111111111111111111111111111111111111' };
+    const list = await oneTimeAddresses(other);
+    expect(list.map((o) => [o.index, o.held, o.crossing])).toEqual([[4, 9_000_000n, null], [2, 0n, null], [1, 265_063n, null]]);
+    // The search stops three untouched numbers after the last used one, and the main address is never part of it.
+    expect(asked).toEqual([1, 2, 3, 4, 5, 6, 7].map(at));
+    // The next crossing will not be given a number that is already used.
+    expect(JSON.parse(data.get(`me7.cross.mainnet.${other.evm}`)!).next).toBe(5);
+  });
+
+  it('carry the record of the transfer where this browser has one', async () => {
+    const mine = { ...openWallet(MNEMONIC), evm: '0x2222222222222222222222222222222222222222' };
+    saveCrossing(mine, crossing({ stage: 'paid', payTx: 'ff' }));
+    nodes({ [at(1)]: 190_000n }, [at(1)]);
+    const list = await oneTimeAddresses(mine);
+    expect(list.map((o) => [o.index, o.held, o.crossing?.to])).toEqual([[1, 190_000n, 'TKHuVq1oKVruCGLvqVexFs6dawKv6fQgFs']]);
+    // Taking a remainder back is a payment of all of it to the wallet's own main address, with no crossing named.
+    expect(takeBack(mine, list[0]!)).toMatchObject({ index: 1, address: at(1), to: mine.tron, amount: '190000', deposit: '' });
+  });
+
+  it('are none for a session without the seed', async () => {
+    nodes({}, []);
+    expect(await oneTimeAddresses({ ...openWallet(MNEMONIC), evm: '0x3333333333333333333333333333333333333333', seed: undefined as unknown as Uint8Array })).toEqual([]);
   });
 });

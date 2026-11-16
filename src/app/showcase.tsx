@@ -128,6 +128,12 @@ const FILMS: Record<string, readonly Draw[]> = {
     (c) => ([30, 75, 120].forEach((y) => (ring(c, 30, y, 10), line(c, [150, 75, 188, y], 4), box(c, 194, y - 13, 26, 26, 4))), box(c, 90, 50, 60, 50), dot(c, 120, 75, 12)),
     (c) => ([30, 75, 120].forEach((y) => (ring(c, 30, y, 10), c.fillRect(192, y - 15, 30, 30))), box(c, 90, 50, 60, 50), text(c, 'st:', 120, 83, 19)),
   ],
+  // USDT paid out of USDC: the money crosses from Base to a new Tron address, and is paid on from there.
+  cross: [
+    (c) => (dot(c, 34, 66, 20), text(c, 'usdc', 34, 118, 15), box(c, 100, 46, 40, 40, 4), text(c, 'new', 120, 118, 15), ring(c, 206, 66, 20), text(c, 'usdt', 206, 118, 15)),
+    (c) => (ring(c, 34, 66, 18), text(c, 'usdc', 34, 118, 15), line(c, [56, 66, 96, 66], 4), c.fillRect(98, 44, 44, 44), text(c, 'new', 120, 118, 15), ring(c, 206, 66, 20), text(c, 'usdt', 206, 118, 15)),
+    (c) => (ring(c, 34, 66, 18), box(c, 100, 46, 40, 40, 4), line(c, [144, 66, 182, 66], 4), dot(c, 206, 66, 22), tick(c, 206, 118)),
+  ],
   // The key hidden inside an ordinary file.
   key: [
     (c) => (box(c, 50, 20, 140, 110), line(c, [62, 112, 96, 66, 118, 94, 140, 58, 178, 112]), dot(c, 160, 44, 9)),

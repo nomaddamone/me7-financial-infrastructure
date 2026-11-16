@@ -137,7 +137,8 @@ export interface OnwardPayment {
 export async function planOnward(crossing: Crossing): Promise<OnwardPayment> {
   const held = await crossingBalance(crossing);
   const want = BigInt(crossing.amount);
-  const quote = await fetchTronQuote(crossing.address, crossing.to, want < held ? want : held, false, true);
+  // The lower fee belongs to the payment a crossing was made for; money taken back from an address later pays the ordinary one.
+  const quote = await fetchTronQuote(crossing.address, crossing.to, want < held ? want : held, false, crossing.deposit !== '');
   const can = held - quote.fee;
   const amount = can >= want ? want : can > 0n ? can : 0n;
   return { amount, fee: quote.fee, receiver: quote.receiver, held, short: want - amount };
@@ -155,8 +156,64 @@ export async function payOnward(wallet: Wallet, crossing: Crossing, pay: OnwardP
     (key) => {
       // The number must be the number of this very address: a wrong one would sign for nothing.
       if (tronAddressFromPrivateKey(key) !== crossing.address) throw new Error('not the key of this address');
-      return relayTronSend(signTronTransaction(main, key).signedHex, signTronTransaction(fee, key).signedHex, crossing.deposit);
+      return relayTronSend(signTronTransaction(main, key).signedHex, signTronTransaction(fee, key).signedHex, crossing.deposit || undefined);
     },
     crossing.index,
   );
+}
+
+/** One of the wallet's one-time Tron addresses: what it holds now, and the crossing it was made for, if this browser remembers it. */
+export interface OneTime {
+  index: number;
+  address: string;
+  held: bigint;
+  crossing: Crossing | null;
+}
+
+/** How many untouched addresses in a row end the search. Numbers are handed out one after another, so gaps are small. */
+const GAP = 3;
+const MOST = 40;
+const found = new Map<string, { at: number; run: Promise<OneTime[]> }>();
+
+/**
+ * Every one-time Tron address of this wallet that was ever used, newest first, with what it holds.
+ * They are found from the seed and the chain, not from this browser's notes, so they show on any
+ * device: the numbers are walked from 1 until a few in a row turn out untouched. A remainder stays
+ * on such an address after a payment (the reserve for the fee), and the wallet must show it.
+ */
+export function oneTimeAddresses(wallet: Wallet, fresh = false): Promise<OneTime[]> {
+  if (!hasSeed(wallet)) return Promise.resolve([]);
+  const key = storeKey(wallet);
+  const hit = found.get(key);
+  if (hit && !fresh && Date.now() - hit.at < 60_000) return hit.run;
+  const run = (async () => {
+    const store = read(wallet);
+    const noted = new Map(store.list.map((c) => [c.index, c]));
+    const last = Math.max(0, ...noted.keys());
+    const list: OneTime[] = [];
+    // One at a time: the public nodes turn away a burst of questions.
+    for (let index = 1, untouched = 0; index <= MOST && (index <= last || untouched < GAP); index++) {
+      const address = tronAddressAt(wallet, index);
+      const crossing = noted.get(index) ?? null;
+      const held = await fetchTrc20Balance(NET.tron.nodes, NET.tron.usdt, address);
+      const used = crossing !== null || held > 0n || (await fetchTronAccount(NET.tron.nodes, address)).exists;
+      untouched = used ? 0 : untouched + 1;
+      if (used) list.push({ index, address, held, crossing });
+    }
+    // A number found used on the chain is never handed out again, whatever this browser remembered.
+    const top = Math.max(0, ...list.map((o) => o.index));
+    if (top >= store.next) write(wallet, { ...read(wallet), next: top + 1 });
+    return list.reverse();
+  })();
+  found.set(key, { at: Date.now(), run });
+  run.catch(() => found.delete(key));
+  return run;
+}
+
+/**
+ * What remains on a one-time address, taken back to the wallet's main Tron address: the same two
+ * signed transfers as any payment from it, at the service's ordinary fee.
+ */
+export function takeBack(wallet: Wallet, one: OneTime): Crossing {
+  return { id: `back-${one.index}`, index: one.index, address: one.address, to: wallet.tron, amount: one.held.toString(), budget: one.held.toString(), deposit: '', usdcIn: '0', baseTx: '', started: Date.now(), deadline: Date.now(), stage: 'open', payTx: '' };
 }

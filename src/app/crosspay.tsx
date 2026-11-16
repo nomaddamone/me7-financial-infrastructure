@@ -89,7 +89,7 @@ export function CrossPay({
   const [why, setWhy] = useState('');
   const busy = useRef(false);
   const barPhase: BarPhase = phase === 'cross' ? 'cross' : phase === 'paying' ? 'paying' : phase === 'done' ? 'done' : 'halt';
-  const bar = useCrossProgress(step === 'working' ? barPhase : 'halt');
+  const bar = useCrossProgress(step === 'working' ? barPhase : 'halt', crossing?.started ?? 0);
   // While the payment is under way the browser asks before the page is closed or reloaded: the second half needs this page.
   const underWay = step === 'working' && (phase === 'cross' || phase === 'paying');
   useEffect(() => {

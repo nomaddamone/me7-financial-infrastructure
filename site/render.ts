@@ -24,7 +24,7 @@ function section(s: Section): string {
 /** What the wallet does, in the order a newcomer asks about it: is it safe, who can see me, is it easy. */
 const GROUPS: readonly { key: 'protect' | 'private' | 'easy'; ids: readonly string[] }[] = [
   { key: 'protect', ids: ['keyfile', 'vault', 'safesend', 'ledger', 'open'] },
-  { key: 'private', ids: ['privacy', 'stealth'] },
+  { key: 'private', ids: ['privacy', 'stealth', 'cross'] },
   { key: 'easy', ids: ['gasless', 'tronless', 'names', 'batch', 'cashout'] },
 ];
 

@@ -61,6 +61,7 @@ import { AddressCode, AddressLine, BrandQr, Scanner } from './payqr.tsx';
 import { Hold } from './hold.tsx';
 import { Naming } from './naming.tsx';
 import { canCross, CrossPay } from './crosspay.tsx';
+import { CrossList } from './crosslist.tsx';
 import { openCrossings, type Crossing } from './crossing.ts';
 import { useOwnName } from './ownname.ts';
 import { addressCode } from '../core/payqr.ts';
@@ -1938,6 +1939,8 @@ function AssetView({
           </button>
         </div>
       </section>
+
+      {a.contract === NET.tron.usdt && canCross(wallet) && <CrossList t={t} wallet={wallet} />}
 
       <section class="panel">
         <h2 class="label">{t.about}</h2>

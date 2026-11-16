@@ -86,6 +86,7 @@ export const HUB: Page = {
           'Your key is a file and a password, not twelve words on a slip of paper. The file can hide inside your own photo, PDF or song.',
           'A payer sees their own transfer, not your whole balance: the wallet hands out a new address after every payment received.',
           'Stealth mode: one code that never changes, and every payer who uses it from me7 pays to a new address only you can find.',
+          'USDT on Tron can be paid out of your USDC on Base, from a new Tron address used once: the recipient does not see your own address.',
           'Under pressure you can open a second, empty vault with a different password.',
           'A transfer is hard to send to the wrong place: an eight-digit address code to compare with the recipient, ten seconds to cancel after you confirm, and a receipt once it is sent. The wallet also warns about a look-alike of an address you know and about a USDT address that has been frozen.',
           'You can pay to a name such as anna.base.eth instead of forty characters, and take a name for your own address.',
@@ -142,6 +143,7 @@ export const HUB: Page = {
           'Ключ — это файл и пароль, а не двенадцать слов на бумажке. Файл можно спрятать в своей фотографии, PDF или песне.',
           'Плательщик видит только свой перевод, а не весь ваш баланс: после каждого поступления кошелёк выдаёт новый адрес.',
           'Stealth mode: один постоянный код, и каждый, кто платит по нему из me7, платит на новый адрес, который можете найти только вы.',
+          'USDT в сети Tron можно заплатить из своих USDC в Base, с нового адреса Tron, которым кошелёк пользуется один раз: ваш собственный адрес получатель не увидит.',
           'Под давлением можно открыть второй, пустой сейф другим паролем.',
           'Перевод трудно отправить не туда: восьмизначный код адреса для сверки с получателем, десять секунд на отмену после подтверждения и отчёт после отправки. Кошелёк также предупредит о подделке под знакомый адрес и о замороженном адресе USDT.',
           'Платить можно на имя вроде anna.base.eth вместо сорока символов, а для своего адреса взять собственное имя.',
@@ -1127,6 +1129,109 @@ export const PAGES: Page[] = [
         { q: 'Код адреса работает только с QR-кодом?', a: 'Нет. Код вычисляется из адреса, поэтому показывается для любого адреса в поле получателя: набранного, вставленного, отсканированного или найденного по имени.' },
         { q: 'Можно ли отменить перевод после десяти секунд?', a: 'Нет. Когда перевод ушёл в сеть, вернуть его не может никто: ни вы, ни me7. Десять секунд — последний момент, чтобы передумать.' },
         { q: 'Нужен ли получателю me7, чтобы назвать код?', a: 'Код показывает me7 на экране получения. Если у получателя другой кошелёк, сверьте сам адрес так, как делаете обычно; десять секунд и отчёт работают в любом случае.' },
+      ],
+    },
+  },
+  {
+    id: 'cross',
+    en: {
+      slug: 'private-usdt-tron',
+      title: 'Pay USDT on Tron from a fresh address, out of USDC — me7',
+      description: 'Pay USDT on Tron without showing your Tron address. me7 turns your USDC on Base into USDT on a new one-time Tron address and pays from it. No TRX needed.',
+      h1: 'USDT on Tron, paid from an address with no past',
+      lead: 'Whoever you pay in USDT on Tron sees the address you paid from: what it holds and everyone it ever paid. me7 can pay from an address made for that one payment instead, funded from your USDC on Base.',
+      card: 'Pay USDT on Tron from a one-time address, out of your USDC on Base.',
+      sections: [
+        {
+          h: 'How it works',
+          p: [
+            'You type the recipient’s Tron address and how much USDT they must get. The wallet makes a new Tron address from your recovery phrase, one that has never been used.',
+            'Your USDC on Base crosses to Tron and arrives on that address as USDT. The wallet then pays the recipient from it, the exact amount, and the address is not used again.',
+          ],
+        },
+        {
+          h: 'How to use it',
+          steps: [
+            'Open send, choose USDT on Tron and switch to “stealth via USDC”.',
+            'Enter the recipient’s address and the amount in USDT.',
+            'Check the screen: what the recipient gets, what leaves your USDC, and each of the three fees.',
+            'Confirm with your password. Keep the page open for a minute or two, until the route on the screen reaches Tron.',
+          ],
+        },
+        {
+          h: 'What it costs',
+          list: [
+            'me7’s fee for sending the USDC: 0.5 USDC and the gas.',
+            'The crossing from Base to Tron: set by the crossing service, about two percent on small amounts.',
+            'me7’s fee for sending the USDT: 1 USDT and what the Tron network takes. You need no TRX.',
+            'All three are shown before you confirm. The smallest payment is 5 USDT.',
+          ],
+        },
+        {
+          h: 'What to keep in mind',
+          list: [
+            'Between Base and Tron the money goes through a third party, NEAR Intents. While it crosses, the money is in that service’s hands, and the wallet cannot check the delivery beforehand. If the exchange is not made, by the service’s rules the USDC goes back to your address on Base.',
+            'It is protection from prying eyes, not anonymity. The recipient sees a fresh address. The crossing service shows publicly which operation on Base funded it, so it is strongest when you pay with stealth money, whose addresses are tied to nothing of yours.',
+            'The second step is signed by your open wallet. If the page closes midway, nothing is lost: the wallet offers to finish the transfer the next time you open it in the same browser.',
+            'With a Ledger it is not available.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Do I need TRX or ETH for this?', a: 'No. me7 pays the network on both sides, and its fees are taken in USDC and in USDT. They are shown before you confirm.' },
+        { q: 'Can the recipient see my main Tron address?', a: 'No. They see the one-time address the payment came from. It holds nothing else and has no history.' },
+        { q: 'What happens if I close the wallet during the transfer?', a: 'The USDT waits on the one-time address, which only your wallet can spend from. Open the wallet again in the same browser and it offers to finish the transfer.' },
+        { q: 'Who holds the money while it crosses?', a: 'The crossing service, NEAR Intents. me7 does not hold it at any point: the wallet sends the USDC to the service and receives the USDT on your own address.' },
+      ],
+    },
+    ru: {
+      slug: 'privatnyy-usdt-tron',
+      title: 'Оплата USDT в Tron с нового адреса, из USDC — me7',
+      description: 'Платите USDT в сети Tron, не показывая свой адрес. me7 превращает ваши USDC в Base в USDT на новом одноразовом адресе Tron и платит с него. TRX не нужен.',
+      h1: 'USDT в Tron с адреса без прошлого',
+      lead: 'Тот, кому вы платите USDT в сети Tron, видит адрес, с которого пришли деньги: сколько на нём лежит и кому с него платили. me7 может заплатить с адреса, созданного для одного этого платежа, а деньги взять из ваших USDC в Base.',
+      card: 'Оплата USDT в Tron с одноразового адреса, из ваших USDC в Base.',
+      sections: [
+        {
+          h: 'Как это работает',
+          p: [
+            'Вы вводите адрес получателя в Tron и сумму в USDT, которую он должен получить. Кошелёк создаёт из вашей фразы восстановления новый адрес Tron, которым ещё никто не пользовался.',
+            'Ваши USDC из Base переходят в Tron и приходят на этот адрес уже как USDT. С него кошелёк платит получателю ровно нужную сумму, и больше адрес не используется.',
+          ],
+        },
+        {
+          h: 'Как пользоваться',
+          steps: [
+            'Откройте «отправить», выберите USDT в сети Tron и переключитесь на «stealth через USDC».',
+            'Введите адрес получателя и сумму в USDT.',
+            'Проверьте экран: сколько получит получатель, сколько спишется USDC и каждую из трёх комиссий.',
+            'Подтвердите паролем. Не закрывайте страницу одну-две минуты, пока маршрут на экране не дойдёт до Tron.',
+          ],
+        },
+        {
+          h: 'Сколько это стоит',
+          list: [
+            'Комиссия me7 за отправку USDC: 0,5 USDC и газ.',
+            'Переход из Base в Tron: цену назначает сервис перехода, на небольших суммах около двух процентов.',
+            'Комиссия me7 за отправку USDT: 1 USDT и расходы сети Tron. TRX вам не нужен.',
+            'Все три видны до подтверждения. Наименьший платёж: 5 USDT.',
+          ],
+        },
+        {
+          h: 'Что нужно знать',
+          list: [
+            'Между Base и Tron деньги идут через сторонний сервис NEAR Intents. Пока они в пути, они у этого сервиса, и проверить доставку заранее кошелёк не может. Если обмен не состоится, по правилам сервиса USDC возвращаются на ваш адрес в Base.',
+            'Это защита от посторонних глаз, а не полная скрытность. Получатель видит свежий адрес. Сервис перехода публично показывает, какая операция в Base его пополнила, поэтому сильнее всего это работает, когда вы платите стелс-деньгами: их адреса ни с чем вашим не связаны.',
+            'Второй шаг подписывает ваш открытый кошелёк. Если страница закроется на полпути, ничего не пропадёт: кошелёк предложит завершить перевод, когда вы снова откроете его в том же браузере.',
+            'С Ledger этот способ недоступен.',
+          ],
+        },
+      ],
+      faq: [
+        { q: 'Нужен ли для этого TRX или ETH?', a: 'Нет. Сеть с обеих сторон оплачивает me7, а его комиссии берутся в USDC и в USDT. Они видны до подтверждения.' },
+        { q: 'Увидит ли получатель мой основной адрес в Tron?', a: 'Нет. Он увидит одноразовый адрес, с которого пришёл платёж. На нём больше ничего нет, и истории у него нет.' },
+        { q: 'Что будет, если закрыть кошелёк во время перевода?', a: 'USDT останутся ждать на одноразовом адресе, с которого может платить только ваш кошелёк. Откройте кошелёк снова в том же браузере, и он предложит завершить перевод.' },
+        { q: 'У кого деньги, пока они переходят из сети в сеть?', a: 'У сервиса перехода NEAR Intents. me7 не держит их ни в какой момент: кошелёк отправляет USDC сервису и получает USDT на ваш собственный адрес.' },
       ],
     },
   },
