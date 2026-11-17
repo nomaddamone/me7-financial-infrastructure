@@ -93,6 +93,8 @@ export interface BridgePlan {
   fee: bigint;
   /** The most the network will take for sending the deposit, in wei; nought when me7's service pays it. */
   gas: bigint;
+  /** USDC on Base only: the amount comes from the stealth pocket and the ordinary one together, which the user has agreed to. */
+  mixed: boolean;
 }
 
 /** An address that stands in for the service's, which is not known until the swap is ordered: only its place in a plan matters. */
@@ -124,24 +126,26 @@ const TRANSFER_GAS = 100_000n;
 const COIN_GAS = 21_000n;
 
 /** The price of a swap, asked without binding anyone. `units` null means all that can be given. Throws 'no-funds', 'no-gas', 'no-relay' or 'needs-mix', me7's service's refusal, or the crossing service's own words. */
-export async function planBridge(wallet: Wallet, from: AssetDef, to: AssetDef, units: bigint | null, prices: UsdPrices): Promise<BridgePlan> {
+export async function planBridge(wallet: Wallet, from: AssetDef, to: AssetDef, units: bigint | null, prices: UsdPrices, mix = false): Promise<BridgePlan> {
   const way = bridgeWay(wallet, from);
-  const priced = async (amountIn: bigint, fee: bigint): Promise<BridgePlan> => ({
+  const priced = async (amountIn: bigint, fee: bigint, mixed = false): Promise<BridgePlan> => ({
     from,
     to,
     amountIn,
     way,
     fee,
     gas: 0n,
+    mixed,
     quote: await fetchCrossSwapQuote(CROSS.api, order(wallet, from, to, amountIn, Date.now() + CROSS.lifetime, await refundAddress(wallet, way)), true, floorFor(from, to, amountIn, prices)),
   });
   if (way === 'base') {
     // USDC on Base: from whichever of the wallet's addresses hold it, one pocket at a time, through me7's service.
     const [rotation, pricing] = await Promise.all([loadRotation(wallet, true), fetchRelayPricing()]);
     if (!pricing) throw new Error('no-relay');
-    const planned = planFromPockets(rotation.spendable, units === null ? { all: STAND_IN } : [{ to: STAND_IN, value: units }], pricing, rotation.fresh, { prefer: 'plain', choice: 'auto', mix: false });
+    // One pocket at a time, the ordinary one first. Both together only when the user has agreed to it (`mix`): that ties their addresses.
+    const planned = planFromPockets(rotation.spendable, units === null ? { all: STAND_IN } : [{ to: STAND_IN, value: units }], pricing, rotation.fresh, { prefer: 'plain', choice: 'auto', mix });
     if (typeof planned === 'string') throw new Error(planned === 'needs-mix' ? 'needs-mix' : planned === 'too-many' ? 'too-many' : 'no-funds');
-    return priced(planned.plan.payouts.reduce((sum, p) => sum + p.value, 0n), planned.plan.fee);
+    return priced(planned.plan.payouts.reduce((sum, p) => sum + p.value, 0n), planned.plan.fee, planned.from === 'both');
   }
   if (way === 'eth') {
     const token = from.contract ?? '';
@@ -162,7 +166,7 @@ export async function planBridge(wallet: Wallet, from: AssetDef, to: AssetDef, u
   if (amountIn <= 0n || amountIn > held) throw new Error('no-funds');
   if (gas > (native ? coin - amountIn : coin)) throw new Error('no-gas');
   const quote = await fetchCrossSwapQuote(CROSS.api, order(wallet, from, to, amountIn, Date.now() + CROSS.lifetime, wallet.evm), true, floorFor(from, to, amountIn, prices));
-  return { from, to, amountIn, quote, way, fee: 0n, gas };
+  return { from, to, amountIn, quote, way, fee: 0n, gas, mixed: false };
 }
 
 /** What an amount would buy on another network, for the form to show while it is typed. Binds nobody and checks no balance. */
@@ -230,7 +234,7 @@ async function sendDeposit(wallet: Wallet, plan: BridgePlan, deposit: string): P
   if (plan.way === 'base') {
     const [rotation, pricing] = await Promise.all([loadRotation(wallet, true), fetchRelayPricing()]);
     if (!pricing) throw new Error('no-relay');
-    const planned = planFromPockets(rotation.spendable, [{ to: deposit, value: plan.amountIn }], pricing, rotation.fresh, { prefer: 'plain', choice: 'auto', mix: false });
+    const planned = planFromPockets(rotation.spendable, [{ to: deposit, value: plan.amountIn }], pricing, rotation.fresh, { prefer: 'plain', choice: 'auto', mix: plan.mixed });
     if (typeof planned === 'string') throw new Error(planned === 'needs-mix' ? 'needs-mix' : planned === 'too-many' ? 'too-many' : 'no-funds');
     // me7's fee is what was shown, or a hair less: a dearer one is asked about again.
     if (planned.plan.fee > plan.fee + plan.fee / 20n) throw new Error('moved');

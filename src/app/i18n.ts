@@ -323,7 +323,9 @@ const ru = {
     errOther: 'Не получилось.',
     errSmall: 'Сервис me7 проводит такие обмены от 5 долларов. Увеличьте сумму.',
     errBusy: 'Сервис me7 сейчас не может провести перевод: газ в сети слишком дорог или сервис занят. Деньги не отправлены. Попробуйте позже.',
-    errMix: 'Такая сумма набирается только из обоих карманов вместе, обычного и stealth. Обменяйте частями: меньшую сумму за раз.',
+    mixAsk: 'Такая сумма набирается только из двух карманов вместе: обычного и stealth. Если объединить их в одной операции, в блокчейне их адреса станут связаны между собой. Можно согласиться или вернуться и обменять меньшую сумму.',
+    mixAgree: 'объединить и продолжить',
+    pocketsHave: 'обычные {plain} · stealth {stealth}',
     reviewNoteService: 'Монету сервису перехода отнесёт сервис me7: газ платит он, а его комиссия берётся в той же монете сверх суммы обмена. Если сервис перехода не сможет обменять, он вернёт деньги на ваш адрес; комиссия me7 при этом не возвращается.',
   },
   cross: {
@@ -1256,7 +1258,9 @@ const en: Dict = {
     errOther: 'It did not work.',
     errSmall: 'me7\'s service carries such swaps from 5 dollars up. Swap more.',
     errBusy: 'me7\'s service cannot carry the transfer just now: gas is too dear or the service is busy. No money was sent. Try later.',
-    errMix: 'That amount can only be made up from both pockets together, the ordinary one and the stealth one. Swap in parts: a smaller amount at a time.',
+    mixAsk: 'That amount can only be made up from two pockets together: the ordinary one and the stealth one. Joining them in one operation ties their addresses to each other on the blockchain. You can agree, or go back and swap less.',
+    mixAgree: 'join them and go on',
+    pocketsHave: 'ordinary {plain} · stealth {stealth}',
     reviewNoteService: 'me7\'s service takes the coin to the crossing service: it pays the gas, and its fee is taken in the same coin on top of the amount swapped. If the crossing service cannot make the swap, it returns the money to your address; me7\'s fee is not returned.',
   },
   cross: {

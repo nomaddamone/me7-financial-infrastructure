@@ -35,6 +35,8 @@ export function Bridge({
   const [step, setStep] = useState<'pricing' | 'review' | 'sending' | 'working'>('pricing');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  // The amount is there only in the stealth pocket and the ordinary one together: the user is asked before they are joined.
+  const [askMix, setAskMix] = useState(false);
 
   const { from, to } = order;
   const text = (a: AssetDef, units: bigint) => `${formatUnits(units, a.decimals, a.shown)} ${a.ticker}`;
@@ -42,17 +44,19 @@ export function Bridge({
   const why = (err: unknown): string => {
     const m = err instanceof Error ? err.message : '';
     if (err instanceof RelayError) return err.code === 'small' ? b.errSmall : err.code === 'pending' ? t.ethless.pending : err.code === 'busy' || err.code === 'empty' ? b.errBusy : relayErrorText(t, err);
-    return m === 'no-funds' ? t.swap.noFunds : m === 'no-gas' ? t.swap.noGas : m === 'moved' ? b.errMoved : m === 'too dear' ? b.errDear : m === 'unsaved' ? b.errUnsaved : m === 'needs-mix' ? b.errMix : m === 'too-many' ? t.gasless.tooMany : m === 'no-relay' ? t.gasless.unavailable : `${b.errOther} ${m.slice(0, 140)}`.trim();
+    return m === 'no-funds' ? t.swap.noFunds : m === 'no-gas' ? t.swap.noGas : m === 'moved' ? b.errMoved : m === 'too dear' ? b.errDear : m === 'unsaved' ? b.errUnsaved : m === 'needs-mix' ? b.mixAsk : m === 'too-many' ? t.gasless.tooMany : m === 'no-relay' ? t.gasless.unavailable : `${b.errOther} ${m.slice(0, 140)}`.trim();
   };
 
-  const price = async () => {
+  const price = async (mix = false) => {
     if (!prices) return;
     setError('');
+    setAskMix(false);
     setStep('pricing');
     try {
-      setPlan(await planBridge(wallet, order.from, order.to, order.units, prices));
+      setPlan(await planBridge(wallet, order.from, order.to, order.units, prices, mix));
       setStep('review');
     } catch (err) {
+      if (err instanceof Error && err.message === 'needs-mix') return setAskMix(true);
       setError(why(err));
     }
   };
@@ -118,7 +122,8 @@ export function Bridge({
     <section class="panel">
       <h2 class="title">{b.title}</h2>
       <p class="note">{b.trust}</p>
-      {step === 'pricing' && !error && (
+      {askMix && <p class="alert">{b.mixAsk}</p>}
+      {step === 'pricing' && !error && !askMix && (
         <p class="lead" role="status">
           <Spinner /> {b.pricing}
         </p>
@@ -163,6 +168,7 @@ export function Bridge({
             )}
           </dl>
           <p class="note">{plan.way === 'own' ? b.reviewNote : b.reviewNoteService}</p>
+          {plan.mixed && <p class="alert">{t.pockets.reviewMix}</p>}
           <label class="field">
             <span class="field-label">{t.confirmPassword}</span>
             <input class="input" type="password" autocomplete="off" value={confirm} onInput={(e) => setConfirm(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
@@ -181,6 +187,10 @@ export function Bridge({
         {step === 'review' && plan ? (
           <button class="btn btn--accent" onClick={() => void run()}>
             {t.swap.confirm}
+          </button>
+        ) : askMix ? (
+          <button class="btn btn--accent" onClick={() => void price(true)}>
+            {b.mixAgree}
           </button>
         ) : (
           error && (

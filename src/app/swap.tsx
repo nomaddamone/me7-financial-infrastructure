@@ -3,6 +3,7 @@ import { hexToBytes } from '@noble/hashes/utils.js';
 import { useEffect, useState } from 'preact/hooks';
 import { parseUnits } from '../core/index.ts';
 import { erc20ApproveData } from '../core/peer.ts';
+import { pocketTotals } from '../core/rotation.ts';
 import { checkSwap, SWAP_NATIVE, SWAP_ROUTER, swapReturned } from '../core/swap.ts';
 import { fetchEvmBalance, formatUnits } from '../net/balances.ts';
 import { NET, SWAP_FEE } from '../net/endpoints.ts';
@@ -108,7 +109,7 @@ export function Swap({
   const [balances, setBalances] = useState<Record<string, bigint>>({});
   const [estimate, setEstimate] = useState<{ key: string; out: bigint | null } | null>(null);
   // USDC on Base swapped for a coin on another network comes from all of the wallet's addresses, not the main one alone.
-  const [pockets, setPockets] = useState<bigint | null>(null);
+  const [pockets, setPockets] = useState<{ plain: bigint; stealth: bigint } | null>(null);
 
   const from = SWAPPABLE.find((a) => a.id === fromId) ?? SWAPPABLE[0];
   // A coin is swapped within its own network, or for a coin on another one through the crossing service.
@@ -134,7 +135,7 @@ export function Swap({
         () => undefined,
       );
     }
-    if (NET.base) void loadRotation(wallet).then((r) => live && setPockets(r.spendable.reduce((sum, h) => sum + h.balance, 0n)), () => undefined);
+    if (NET.base) void loadRotation(wallet).then((r) => live && setPockets(pocketTotals(r.spendable)), () => undefined);
     return () => {
       live = false;
     };
@@ -142,7 +143,7 @@ export function Swap({
 
   // What the amount would buy, asked a moment after the typing stops. It binds nobody: the review asks again.
   const acrossPockets = to.net !== from.net && !!NET.base && from.contract === NET.base.usdc && pockets !== null;
-  const holds = acrossPockets ? (pockets as bigint) : balances[from.id];
+  const holds = acrossPockets && pockets ? pockets.plain + pockets.stealth : balances[from.id];
   const wanted = all ? (from.kind === 'eth' ? null : (holds ?? null)) : parseUnits(amount, from.decimals);
   const estimateKey = `${from.id}>${to.id}>${wanted ?? ''}`;
   useEffect(() => {
@@ -461,6 +462,8 @@ export function Swap({
       </span>
     </div>
   );
+  // Where the USDC is: the two pockets are not joined without asking, so the form says what each holds.
+  const pocketNote = acrossPockets && pockets && pockets.plain > 0n && pockets.stealth > 0n ? <p class="note">{t.bridge.pocketsHave.replace('{plain}', text(from, pockets.plain)).replace('{stealth}', text(from, pockets.stealth))}</p> : null;
   const getSub = (
     <div class="swapf-sub">
       <span>{known?.out && prices ? usdOf(to, known.out, prices).trim() : ' '}</span>
@@ -505,6 +508,7 @@ export function Swap({
         </div>
       </div>
       {list}
+      {pocketNote}
       {to.net !== from.net && <p class="note">{t.bridge.trust}</p>}
       {error && (
         <p class="alert" role="alert">
