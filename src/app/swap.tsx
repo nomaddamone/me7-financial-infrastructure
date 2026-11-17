@@ -11,6 +11,7 @@ import { buildSwap, fetchSwapRoute, fetchTokenAllowance, type SwapRoute } from '
 import { ASSETS, BASE_L1_RESERVE, evmOf, type AssetDef } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { Spinner } from './fx.tsx';
+import { loadRotation } from './addresses.ts';
 import { bridgeTargets, estimateBridge, openBridgings, type Bridging } from './bridge.ts';
 import { Bridge } from './bridge.tsx';
 import type { Dict } from './i18n.ts';
@@ -107,6 +108,8 @@ export function Swap({
   const [picking, setPicking] = useState<'from' | 'to' | null>(null);
   const [balances, setBalances] = useState<Record<string, bigint>>({});
   const [estimate, setEstimate] = useState<{ key: string; out: bigint | null } | null>(null);
+  // USDC on Base swapped for a coin on another network comes from all of the wallet's addresses, not the main one alone.
+  const [pockets, setPockets] = useState<bigint | null>(null);
 
   const from = SWAPPABLE.find((a) => a.id === fromId) ?? SWAPPABLE[0];
   // A coin is swapped within its own network, or for a coin on another one through the crossing service.
@@ -132,13 +135,16 @@ export function Swap({
         () => undefined,
       );
     }
+    if (NET.base) void loadRotation(wallet).then((r) => live && setPockets(r.spendable.reduce((sum, h) => sum + h.balance, 0n)), () => undefined);
     return () => {
       live = false;
     };
   }, [wallet]);
 
   // What the amount would buy, asked a moment after the typing stops. It binds nobody: the review asks again.
-  const wanted = all ? (from.kind === 'eth' ? null : (balances[from.id] ?? null)) : parseUnits(amount, from.decimals);
+  const acrossPockets = to.net !== from.net && !!NET.base && from.contract === NET.base.usdc && pockets !== null;
+  const holds = acrossPockets ? (pockets as bigint) : balances[from.id];
+  const wanted = all ? (from.kind === 'eth' ? null : (holds ?? null)) : parseUnits(amount, from.decimals);
   const estimateKey = `${from.id}>${to.id}>${wanted ?? ''}`;
   useEffect(() => {
     if (view !== 'form' || bridge || wanted === null || wanted <= 0n) return;
@@ -180,7 +186,6 @@ export function Swap({
       const units = all ? null : parseUnits(amount, from.decimals);
       if (!all && (units === null || units <= 0n)) return setError(s.badAmount);
       if (!prices) return setError(t.bridge.errPrice);
-      if (NET.base && from.contract === NET.base.usdc && quarantineOf(wallet, 'base', wallet.evm)) return setError(t.held.errSwap);
       return setBridge({ order: { from, to, units } });
     }
     // USDC on a quarantined address is not swapped here: the swap's fee would come to me7 from that address.
@@ -451,7 +456,7 @@ export function Swap({
     <div class="swapf-sub">
       <span aria-live="polite">{typed !== null && typed > 0n && prices ? usdOf(from, typed, prices).trim() : ' '}</span>
       <span>
-        {balances[from.id] !== undefined && `${s.balance} ${text(from, balances[from.id] as bigint)} `}
+        {holds !== undefined && `${s.balance} ${text(from, holds)} `}
         <button type="button" class="swapf-max" aria-pressed={all} onClick={() => setAll((v) => !v)}>
           {t.sendMax}
         </button>

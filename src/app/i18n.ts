@@ -325,6 +325,10 @@ const ru = {
     errDear: 'Сервис предложил слишком плохой курс. Деньги не отправлены.',
     errUnsaved: 'Браузер не дал записать обмен, поэтому он не начат. Деньги не отправлены.',
     errOther: 'Не получилось.',
+    errSmall: 'Сервис me7 проводит такие обмены от 5 долларов. Увеличьте сумму.',
+    errBusy: 'Сервис me7 сейчас не может провести перевод: газ в сети слишком дорог или сервис занят. Деньги не отправлены. Попробуйте позже.',
+    errMix: 'Такая сумма набирается только из обоих карманов вместе, обычного и stealth. Обменяйте частями: меньшую сумму за раз.',
+    reviewNoteService: 'Монету сервису перехода отнесёт сервис me7: газ платит он, а его комиссия берётся в той же монете сверх суммы обмена. Если сервис перехода не сможет обменять, он вернёт деньги на ваш адрес; комиссия me7 при этом не возвращается.',
   },
   cross: {
     modeLabel: 'как платить',
@@ -1258,6 +1262,10 @@ const en: Dict = {
     errDear: 'The service offered too poor a rate. No money was sent.',
     errUnsaved: 'The browser would not write the swap down, so it was not begun. No money was sent.',
     errOther: 'It did not work.',
+    errSmall: 'me7\'s service carries such swaps from 5 dollars up. Swap more.',
+    errBusy: 'me7\'s service cannot carry the transfer just now: gas is too dear or the service is busy. No money was sent. Try later.',
+    errMix: 'That amount can only be made up from both pockets together, the ordinary one and the stealth one. Swap in parts: a smaller amount at a time.',
+    reviewNoteService: 'me7\'s service takes the coin to the crossing service: it pays the gas, and its fee is taken in the same coin on top of the amount swapped. If the crossing service cannot make the swap, it returns the money to your address; me7\'s fee is not returned.',
   },
   cross: {
     modeLabel: 'how to pay',

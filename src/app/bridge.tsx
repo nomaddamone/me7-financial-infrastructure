@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import { formatUnits } from '../net/balances.ts';
+import { RelayError } from '../net/relay.ts';
 import type { UsdPrices } from '../net/send.ts';
 import { ASSETS, evmOf, type AssetDef } from './assets.ts';
 import { followBridge, ownAddress, planBridge, startBridge, type BridgePlan, type Bridging } from './bridge.ts';
 import { CrossBar, useCrossProgress } from './crossbar.tsx';
 import { Spinner } from './fx.tsx';
+import { relayErrorText } from './home.tsx';
 import type { Dict } from './i18n.ts';
 import { isSessionPassword, type Wallet } from './wallet.ts';
 
@@ -43,7 +45,8 @@ export function Bridge({
   const usd = (a: AssetDef, units: bigint) => (prices ? ` ≈ ${usdFormat.format(Number(formatUnits(units, a.decimals, a.decimals)) * prices[a.price])}` : '');
   const why = (err: unknown): string => {
     const m = err instanceof Error ? err.message : '';
-    return m === 'no-funds' ? t.swap.noFunds : m === 'no-gas' ? t.swap.noGas : m === 'moved' ? b.errMoved : m === 'too dear' ? b.errDear : m === 'unsaved' ? b.errUnsaved : `${b.errOther} ${m.slice(0, 140)}`.trim();
+    if (err instanceof RelayError) return err.code === 'small' ? b.errSmall : err.code === 'pending' ? t.ethless.pending : err.code === 'busy' || err.code === 'empty' ? b.errBusy : relayErrorText(t, err);
+    return m === 'no-funds' ? t.swap.noFunds : m === 'no-gas' ? t.swap.noGas : m === 'moved' ? b.errMoved : m === 'too dear' ? b.errDear : m === 'unsaved' ? b.errUnsaved : m === 'needs-mix' ? b.errMix : m === 'too-many' ? t.gasless.tooMany : m === 'no-relay' ? t.gasless.unavailable : `${b.errOther} ${m.slice(0, 140)}`.trim();
   };
 
   const price = async () => {
@@ -166,13 +169,25 @@ export function Bridge({
             </dd>
             <dt>{b.takes}</dt>
             <dd>{plan.quote.seconds < 90 ? b.aMinute : b.minutes.replace('{n}', String(Math.round(plan.quote.seconds / 60)))}</dd>
-            <dt>{t.feeUpTo}</dt>
-            <dd>
-              {formatUnits(plan.gas, 18, 6)} eth
-              <span class="dim">{prices ? ` ≈ ${usdFormat.format(Number(formatUnits(plan.gas, 18, 18)) * prices.eth)}` : ''}</span>
-            </dd>
+            {plan.way === 'own' ? (
+              <>
+                <dt>{t.feeUpTo}</dt>
+                <dd>
+                  {formatUnits(plan.gas, 18, 6)} eth
+                  <span class="dim">{prices ? ` ≈ ${usdFormat.format(Number(formatUnits(plan.gas, 18, 18)) * prices.eth)}` : ''}</span>
+                </dd>
+              </>
+            ) : (
+              <>
+                <dt>{t.gasless.feeLabel}</dt>
+                <dd>
+                  {text(from, plan.fee)}
+                  <span class="dim">{usd(from, plan.fee)}</span>
+                </dd>
+              </>
+            )}
           </dl>
-          <p class="note">{b.reviewNote}</p>
+          <p class="note">{plan.way === 'own' ? b.reviewNote : b.reviewNoteService}</p>
           <label class="field">
             <span class="field-label">{t.confirmPassword}</span>
             <input class="input" type="password" autocomplete="off" value={confirm} onInput={(e) => setConfirm(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
