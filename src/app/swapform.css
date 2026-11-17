@@ -1,6 +1,8 @@
 /* The swap form: two coins, an amount, and what it buys. One box, a line between the two sides, the arrow sitting on the line. */
 .swapf {
   display: grid;
+  /* The one column never grows past the panel, whatever its content would like. */
+  grid-template-columns: minmax(0, 1fr);
   position: relative;
   border: 1px solid var(--line);
   border-radius: 2px;
@@ -20,7 +22,9 @@
 }
 .swapf-amount {
   all: unset;
-  flex: 1;
+  /* An input asks for twenty characters of room by default; here it takes what is left beside the coin. */
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
   font: 20px var(--mono);
   color: var(--fg);
@@ -32,7 +36,8 @@
   color: var(--dim);
 }
 .swapf-est {
-  flex: 1;
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
   font: 20px var(--mono);
   color: var(--fg);
@@ -45,8 +50,9 @@
 }
 .swapf-sub {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 10px;
+  gap: 2px 10px;
   font-size: 12px;
   color: var(--dim);
   min-height: 16px;

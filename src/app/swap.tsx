@@ -12,7 +12,7 @@ import { ASSETS, BASE_L1_RESERVE, evmOf, type AssetDef } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { Spinner } from './fx.tsx';
 import { loadRotation } from './addresses.ts';
-import { bridgeTargets, estimateBridge, openBridgings, type Bridging } from './bridge.ts';
+import { bridgeTargets, estimateBridge } from './bridge.ts';
 import { Bridge } from './bridge.tsx';
 import type { Dict } from './i18n.ts';
 import { CoinButton, CoinList } from './swapform.tsx';
@@ -101,8 +101,7 @@ export function Swap({
   const [step, setStep] = useState<'approve' | 'swap'>('swap');
   const [txHash, setTxHash] = useState('');
   // A swap for a coin on another network runs on a screen of its own (see src/app/bridge.tsx).
-  const [bridge, setBridge] = useState<{ order?: { from: AssetDef; to: AssetDef; units: bigint | null }; resume?: Bridging } | null>(null);
-  const [pending, setPending] = useState<Bridging | null>(() => openBridgings(wallet)[0] ?? null);
+  const [bridge, setBridge] = useState<{ order: { from: AssetDef; to: AssetDef; units: bigint | null } } | null>(null);
 
   // Which coin list is open, what the wallet holds of each coin, and what the amount typed would buy.
   const [picking, setPicking] = useState<'from' | 'to' | null>(null);
@@ -307,7 +306,6 @@ export function Swap({
         {...bridge}
         onClose={(done) => {
           setBridge(null);
-          setPending(openBridgings(wallet)[0] ?? null);
           if (done) {
             setAmount('');
             setAll(false);
@@ -487,14 +485,6 @@ export function Swap({
     <form class="panel" autocomplete="off" onSubmit={(e) => void prepare(e)}>
       <h2 class="title">{s.title}</h2>
       <UsdcElsewhere t={t} wallet={wallet} />
-      {pending && (
-        <p class="note">
-          {t.bridge.pending}{' '}
-          <button type="button" class="linklike" onClick={() => setBridge({ resume: pending })}>
-            {t.bridge.look}
-          </button>
-        </p>
-      )}
       <div class="swapf">
         <div class="swapf-side">
           <span class="field-label">{s.from}</span>

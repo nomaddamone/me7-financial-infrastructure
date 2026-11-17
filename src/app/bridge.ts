@@ -4,7 +4,7 @@ import { planFromPockets } from '../core/rotation.ts';
 import { signEvmTransaction } from '../core/tx-evm.ts';
 import { erc20TransferData } from '../core/erc20.ts';
 import { fetchEvmBalance, formatUnits } from '../net/balances.ts';
-import { fetchCrossProgress, fetchCrossSwapQuote, tellCrossDeposit } from '../net/cross.ts';
+import { fetchCrossSwapQuote, tellCrossDeposit } from '../net/cross.ts';
 import { CROSS, ETH_GASLESS, NET, SWAP_FEE } from '../net/endpoints.ts';
 import { fetchEthGasTerms, fetchRelayPricing, relayEthSend } from '../net/relay.ts';
 import { fetchErc20Balance, fetchEvmFees, type UsdPrices } from '../net/send.ts';
@@ -20,8 +20,8 @@ import { withEvmKey, type Wallet } from './wallet.ts';
  * for; what it buys arrives on the wallet's own address on the other network. In between the
  * money is in the service's hands: it is a third party, and this is said on the screen.
  *
- * A swap under way is written down in this browser before anything is sent, so that a closed tab
- * can be told how it ended.
+ * A swap is written down in this browser before anything is sent: the note names the service's
+ * address the money went to, which is what to ask the service about if a swap ever goes astray.
  */
 export interface Bridging {
   id: string;
@@ -199,12 +199,9 @@ function forget(wallet: Wallet, id: string): void {
     /* it stays as a swap that was never sent, which is not shown */
   }
 }
-/** The swaps whose end is not known yet and whose deposit was sent. */
-export const openBridgings = (wallet: Wallet): Bridging[] => loadBridgings(wallet).filter((b) => b.stage === 'open' && b.tx !== '');
-
 /**
  * Do the swap that was shown: the binding price is asked (it may have moved a little, and not more),
- * the swap is written down, and the deposit is sent. Returns the record; from here `followBridge` tells how it ends.
+ * the swap is written down, and the deposit is sent. Returns the record.
  */
 export async function startBridge(wallet: Wallet, plan: BridgePlan, prices: UsdPrices): Promise<Bridging> {
   const deadline = Date.now() + CROSS.lifetime;
@@ -250,14 +247,4 @@ async function sendDeposit(wallet: Wallet, plan: BridgePlan, deposit: string): P
   const chain = evmOf(plan.from);
   const receipt = plan.from.kind === 'eth' ? await sendEvmCall(chain, wallet, deposit, new Uint8Array(0), plan.amountIn) : await sendEvmCall(chain, wallet, plan.from.contract ?? '', erc20TransferData(deposit, plan.amountIn));
   return receipt.hash;
-}
-
-/** Ask how a swap stands, and write its end down when it has one. */
-export async function followBridge(wallet: Wallet, one: Bridging): Promise<Bridging> {
-  const { state, delivered } = await fetchCrossProgress(CROSS.api, one.deposit);
-  const stage = state === 'done' ? 'done' : state === 'refunded' ? 'refunded' : state === 'failed' ? 'failed' : 'open';
-  if (stage === 'open') return one;
-  const next: Bridging = { ...one, stage, delivered: delivered?.toString() ?? '' };
-  save(wallet, next);
-  return next;
 }

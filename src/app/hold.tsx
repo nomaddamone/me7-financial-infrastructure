@@ -58,3 +58,9 @@ export function Hold({ t, lines, onDone, onCancel }: { t: Dict; lines: readonly 
     </section>
   );
 }
+
+/** The same film without the count: for a screen that says something has left, where the tick is the news. */
+const SENT_AT: readonly number[] = [0, 500, 2600];
+export function SentFilm() {
+  return <Film frames={FRAMES} at={SENT_AT} className="hold-film" />;
+}
