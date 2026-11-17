@@ -4,6 +4,7 @@ import { signAuthorization, type SignedAuthorization, type TokenDomain } from '.
 import { isUsed, receiveIndex, type Holding, type Unsigned } from '../core/rotation.ts';
 import { NET } from '../net/endpoints.ts';
 import { scanHoldings } from '../net/rotation.ts';
+import { quarantined } from './quarantine.ts';
 import { STEALTH_INDEX, stealthFinds, stealthKeyAt, syncStealth } from './stealth.ts';
 import type { Wallet } from './wallet.ts';
 
@@ -16,6 +17,8 @@ import type { Wallet } from './wallet.ts';
 export interface Rotation {
   /** Every address looked at, the main one first. Most of the tail is unused. */
   holdings: Holding[];
+  /** The addresses me7's service may pay from: all of them but those in quarantine (see src/core/quarantine.ts). */
+  spendable: Holding[];
   total: bigint;
   /** Where to receive next: the first address never used. */
   receive: { index: number; address: string };
@@ -75,7 +78,8 @@ async function scan(wallet: Wallet): Promise<Rotation> {
   if (finds.length > 0) {
     holdings = [...holdings, ...(await scanHoldings(base.rpc, base.usdc, finds.map((f, i) => ({ index: STEALTH_INDEX + i, address: f.address }))))];
   }
-  return { holdings, total: holdings.reduce((sum, h) => sum + h.balance, 0n), ...result };
+  const held = new Set(quarantined(wallet).flatMap((m) => (m.chain === 'base' ? [m.address] : [])));
+  return { holdings, spendable: holdings.filter((h) => !held.has(h.address.toLowerCase())), total: holdings.reduce((sum, h) => sum + h.balance, 0n), ...result };
 }
 
 /** The wallet's addresses and what they hold. Answers within the last 15 seconds are reused unless `fresh` is asked for. */
@@ -91,6 +95,9 @@ export function loadRotation(wallet: Wallet, fresh = false): Promise<Rotation> {
   return result;
 }
 
+/** Drop what is remembered of the addresses, so that the next look reads them (and their quarantine) anew. */
+export const forgetRotation = (wallet: Wallet): void => void scans.delete(wallet.evm);
+
 const lastOwners = new Map<string, string[]>();
 /**
  * The addresses whose USDC makes up the wallet's balance, for reading its
@@ -104,6 +111,29 @@ export async function rotationOwners(wallet: Wallet): Promise<string[]> {
     /* the nodes are unreachable: fall back to what is known */
   }
   return lastOwners.get(wallet.evm) ?? [wallet.evm];
+}
+
+/**
+ * The private key of one of the wallet's USDC addresses, by its number, for the length of `use`:
+ * derived for this call, checked against the address it must belong to, and wiped.
+ */
+export async function withAddressKey<T>(wallet: Wallet, holding: { index: number; address: string }, use: (privateKey: Uint8Array) => T | Promise<T>): Promise<T> {
+  let key: Uint8Array;
+  if (holding.index >= STEALTH_INDEX) key = stealthKeyAt(wallet, holding.index);
+  else {
+    const parent = HDKey.fromMasterSeed(wallet.seed).derive(PARENT);
+    const child = parent.deriveChild(holding.index);
+    if (!child.privateKey) throw new Error('derivation produced no key');
+    key = Uint8Array.from(child.privateKey);
+    child.wipePrivateData();
+    parent.wipePrivateData();
+  }
+  try {
+    if (evmAddressFromPrivateKey(key).toLowerCase() !== holding.address.toLowerCase()) throw new Error('address does not belong to this wallet');
+    return await use(key);
+  } finally {
+    wipe(key);
+  }
 }
 
 /** Sign permissions, each with the key of the address it takes money from. Keys are derived for this call and wiped. */

@@ -240,3 +240,20 @@ export function portfolioSeries(
   points.push({ time: now, value: totalNow });
   return points;
 }
+
+/**
+ * For the quarantine check: the blocks in which USDC arrived on the wallet's Base addresses within
+ * the last year, and the USDT that arrived on its main Tron address with who sent it. Both come
+ * from the same reading that draws the curves, so the check asks the sources nothing twice.
+ */
+export async function usdcArrivalBlocks(wallet: Wallet, now: number): Promise<number[]> {
+  const usdc = BASE_ASSETS.find((a) => a.contract === NET.base?.usdc);
+  if (!usdc) return [];
+  const changes = await baseChanges(usdc, wallet, now);
+  return [...new Set(changes.flatMap((c) => (c.delta > 0n && c.block !== undefined ? [c.block] : [])))];
+}
+export async function usdtTronArrivals(wallet: Wallet, now: number): Promise<Change[]> {
+  const usdt = ASSETS.find((a) => a.kind === 'trc20' && a.contract === NET.tron.usdt);
+  if (!usdt) return [];
+  return (await tronChanges(usdt, wallet, now)).filter((c) => c.delta > 0n && !!c.peer);
+}

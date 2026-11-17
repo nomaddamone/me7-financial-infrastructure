@@ -146,3 +146,108 @@ export function crossBudget(amount: bigint, feeEstimate: bigint): bigint {
   const fee = feeEstimate + feeEstimate / 20n;
   return ((amount + fee + CENT - 1n) / CENT) * CENT;
 }
+
+/**
+ * Swapping a coin on one network for a coin on another through the same crossing service: the
+ * wallet gives an exact amount, and the service delivers what that buys to an address of the same
+ * wallet on the other network. The same rule holds as for a payment: the answer must repeat the
+ * order word for word, and what it promises must not fall below a floor the wallet worked out
+ * for itself from prices it got elsewhere.
+ */
+export interface SwapOrder {
+  origin: string;
+  destination: string;
+  /** The wallet's own address on the network the result arrives on, and the one on the network a refund returns to. */
+  recipient: string;
+  refundTo: string;
+  /** Exactly how much is given, in the given coin's units. */
+  amountIn: bigint;
+  slippageBps: number;
+  deadline: number;
+  /** me7's own part, in hundredths of a percent of what is given, and the address it is credited to. Absent: none is asked. */
+  fee?: { recipient: string; bps: number };
+}
+
+export interface SwapQuote {
+  /** What the service expects to deliver, and the least it binds itself to, in the wanted coin's units. */
+  amountOut: bigint;
+  minOut: bigint;
+  depositAddress: string | null;
+  seconds: number;
+}
+
+/** The service's name for a coin: the network's own coin, or a token on an EVM network by its contract. */
+export function crossAssetName(network: 'eth' | 'base' | 'tron' | 'btc', contract?: string): string {
+  if (!contract) return `nep141:${network}.omft.near`;
+  if (network === 'tron' || network === 'btc' || !/^0x[0-9a-fA-F]{40}$/.test(contract)) throw new Error('no name for this coin');
+  return `nep141:${network}-${contract.toLowerCase()}.omft.near`;
+}
+
+export function crossSwapRequest(order: SwapOrder, dry: boolean): Record<string, unknown> {
+  return {
+    dry,
+    swapType: 'EXACT_INPUT',
+    slippageTolerance: order.slippageBps,
+    originAsset: order.origin,
+    depositType: 'ORIGIN_CHAIN',
+    destinationAsset: order.destination,
+    amount: order.amountIn.toString(),
+    refundTo: order.refundTo,
+    refundType: 'ORIGIN_CHAIN',
+    recipient: order.recipient,
+    recipientType: 'DESTINATION_CHAIN',
+    deadline: new Date(order.deadline).toISOString(),
+    ...(order.fee && order.fee.bps > 0 ? { appFees: [{ recipient: order.fee.recipient, fee: order.fee.bps }] } : {}),
+  };
+}
+
+/**
+ * Read the answer to a swap order. Throws unless it answers exactly this order, takes exactly the
+ * amount given, and binds itself to no less than `floor`. A real (not dry) order must name an
+ * address to pay to, on an EVM network, with no memo.
+ */
+export function readCrossSwapQuote(answer: unknown, order: SwapOrder, dry: boolean, floor: bigint): SwapQuote {
+  const a = (typeof answer === 'object' && answer !== null ? answer : {}) as { quote?: Record<string, unknown>; quoteRequest?: Record<string, unknown> };
+  const q = a.quote;
+  const r = a.quoteRequest;
+  if (!q || !r) throw new Error('no quote');
+  const same =
+    r.swapType === 'EXACT_INPUT' &&
+    r.originAsset === order.origin &&
+    r.destinationAsset === order.destination &&
+    r.recipient === order.recipient &&
+    r.recipientType === 'DESTINATION_CHAIN' &&
+    r.refundTo === order.refundTo &&
+    r.refundType === 'ORIGIN_CHAIN' &&
+    r.depositType === 'ORIGIN_CHAIN' &&
+    r.amount === order.amountIn.toString();
+  if (!same) throw new Error('the answer is to another order');
+  const amountIn = digits(q.amountIn);
+  const amountOut = digits(q.amountOut);
+  const minOut = digits(q.minAmountOut);
+  if (amountIn === null || amountOut === null || minOut === null) throw new Error('malformed quote');
+  if (amountIn !== order.amountIn) throw new Error('not the amount given');
+  if (minOut <= 0n || minOut > amountOut) throw new Error('malformed quote');
+  if (minOut < floor) throw new Error('too dear');
+  const seconds = typeof q.timeEstimate === 'number' && q.timeEstimate > 0 && q.timeEstimate < 86_400 ? Math.round(q.timeEstimate) : 120;
+  if (dry) return { amountOut, minOut, depositAddress: null, seconds };
+  if (typeof q.depositAddress !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(q.depositAddress) || q.depositMemo) throw new Error('no deposit address');
+  if (q.depositAddress.toLowerCase() === order.refundTo.toLowerCase() || q.depositAddress.toLowerCase() === order.recipient.toLowerCase()) throw new Error('no deposit address');
+  return { amountOut, minOut, depositAddress: q.depositAddress, seconds };
+}
+
+/**
+ * The least a swap may promise: what is given is worth `valueOut` of the wanted coin at prices the
+ * wallet got elsewhere; a share of that may go on the price and the service's cut (`lossBps`), and a
+ * fixed sum on the networks' own costs (`flat`, in the wanted coin's units). Below that it is refused.
+ */
+export function swapFloor(valueOut: bigint, lossBps: bigint, flat: bigint): bigint {
+  const floor = valueOut - (valueOut * lossBps) / 10_000n - flat;
+  return floor > 0n ? floor : 0n;
+}
+
+/** What the service says was delivered, once a swap is done: the amount, in the wanted coin's units. Null when it does not say. */
+export function readCrossDelivered(answer: unknown): bigint | null {
+  const details = (typeof answer === 'object' && answer !== null ? (answer as { swapDetails?: { amountOut?: unknown } }).swapDetails : undefined) ?? {};
+  return digits(details.amountOut);
+}

@@ -13,7 +13,7 @@ import { crossingBalance, dropCrossing, freshTronAddress, payOnward, planOnward,
 import { CrossBar, useCrossProgress, type BarPhase } from './crossbar.tsx';
 import { Spinner } from './fx.tsx';
 import { Hold } from './hold.tsx';
-import { relayErrorText, sendPlan } from './home.tsx';
+import { announcePlan, relayErrorText, sendPlan } from './home.tsx';
 import type { Dict } from './i18n.ts';
 import { isSessionPassword, type Wallet } from './wallet.ts';
 
@@ -105,7 +105,7 @@ export function CrossPay({
   useEffect(() => {
     let live = true;
     loadRotation(wallet).then(
-      (r) => live && setTotals(pocketTotals(r.holdings)),
+      (r) => live && setTotals(pocketTotals(r.spendable)),
       () => undefined,
     );
     return () => {
@@ -117,14 +117,15 @@ export function CrossPay({
   const planUsdc = async (deposit: string, usdcIn: bigint, mix: boolean) => {
     const [rotation, pricing] = await Promise.all([loadRotation(wallet, true), fetchRelayPricing()]);
     if (!pricing) throw new Error(t.gasless.unavailable);
-    setTotals(pocketTotals(rotation.holdings));
+    setTotals(pocketTotals(rotation.spendable));
     // Stealth money first: its addresses are tied to nothing, which is the point of paying this way.
     // A payment into a crossing has me7's lower fee; the service checks for itself that it is one.
-    const planned = planFromPockets(rotation.holdings, [{ to: deposit, value: usdcIn }], { ...pricing, base: CROSS.baseFee }, rotation.fresh, { prefer: 'stealth', choice: pocket, mix });
+    const planned = planFromPockets(rotation.spendable, [{ to: deposit, value: usdcIn }], { ...pricing, base: CROSS.baseFee }, rotation.fresh, { prefer: 'stealth', choice: pocket, mix });
     if (planned === 'needs-mix') throw new Error('needs-mix');
     if (planned === 'pocket-short') throw new Error(t.pockets.short.replace('{sum}', pocket === 'auto' ? '' : money((totals ?? { plain: 0n, stealth: 0n })[pocket])));
     if (planned === 'too-many') throw new Error(t.gasless.tooMany);
     if (typeof planned === 'string') throw new Error(x.noFunds.replace('{sum}', money(usdcIn)));
+    announcePlan(planned.plan);
     return { ...planned, refundTo: rotation.receive.address };
   };
 

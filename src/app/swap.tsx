@@ -5,13 +5,16 @@ import { parseUnits } from '../core/index.ts';
 import { erc20ApproveData } from '../core/peer.ts';
 import { checkSwap, SWAP_NATIVE, SWAP_ROUTER, swapReturned } from '../core/swap.ts';
 import { fetchEvmBalance, formatUnits } from '../net/balances.ts';
-import { SWAP_FEE } from '../net/endpoints.ts';
+import { NET, SWAP_FEE } from '../net/endpoints.ts';
 import { fetchErc20Balance, fetchEvmFees, type UsdPrices } from '../net/send.ts';
 import { buildSwap, fetchSwapRoute, fetchTokenAllowance, type SwapRoute } from '../net/swap.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, type AssetDef } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { Spinner } from './fx.tsx';
+import { bridgeTargets, openBridgings, type Bridging } from './bridge.ts';
+import { Bridge } from './bridge.tsx';
 import type { Dict } from './i18n.ts';
+import { quarantineOf } from './quarantine.ts';
 import { isSessionPassword, type Wallet } from './wallet.ts';
 
 /** Coins that can be swapped: those on a network the aggregator serves. */
@@ -98,11 +101,16 @@ export function Swap({
   const [confirm, setConfirm] = useState('');
   const [step, setStep] = useState<'approve' | 'swap'>('swap');
   const [txHash, setTxHash] = useState('');
+  // A swap for a coin on another network runs on a screen of its own (see src/app/bridge.tsx).
+  const [bridge, setBridge] = useState<{ order?: { from: AssetDef; to: AssetDef; units: bigint | null }; resume?: Bridging } | null>(null);
+  const [pending, setPending] = useState<Bridging | null>(() => openBridgings(wallet)[0] ?? null);
 
   const from = here.find((a) => a.id === fromId) ?? here[0];
-  const to = here.find((a) => a.id === toId && a.id !== from?.id) ?? here.find((a) => a.id !== from?.id);
+  const others = from ? bridgeTargets(from) : [];
+  const to = [...here, ...others].find((a) => a.id === toId && a.id !== from?.id) ?? here.find((a) => a.id !== from?.id);
   useEffect(() => {
-    if (from && to) onPair?.(from, to);
+    // The trading terminal follows pairs within one network only.
+    if (from && to && to.net === from.net) onPair?.(from, to);
     // Reported when the pair changes, not on every render of the parent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from?.id, to?.id]);
@@ -121,6 +129,15 @@ export function Swap({
   const prepare = async (e?: Event) => {
     e?.preventDefault();
     setError('');
+    if (to.net !== from.net) {
+      const units = all ? null : parseUnits(amount, from.decimals);
+      if (!all && (units === null || units <= 0n)) return setError(s.badAmount);
+      if (!prices) return setError(t.bridge.errPrice);
+      if (NET.base && from.contract === NET.base.usdc && quarantineOf(wallet, 'base', wallet.evm)) return setError(t.held.errSwap);
+      return setBridge({ order: { from, to, units } });
+    }
+    // USDC on a quarantined address is not swapped here: the swap's fee would come to me7 from that address.
+    if (NET.base && from.contract === NET.base.usdc && quarantineOf(wallet, 'base', wallet.evm)) return setError(t.held.errSwap);
     setBusy(true);
     try {
       const native = from.kind === 'eth';
@@ -226,6 +243,26 @@ export function Swap({
           </button>
         </div>
       </section>
+    );
+  }
+
+  if (bridge) {
+    return (
+      <Bridge
+        t={t}
+        wallet={wallet}
+        prices={prices}
+        {...bridge}
+        onClose={(done) => {
+          setBridge(null);
+          setPending(openBridgings(wallet)[0] ?? null);
+          if (done) {
+            setAmount('');
+            setAll(false);
+            if (!embedded) onClose(true);
+          }
+        }}
+      />
     );
   }
 
@@ -344,6 +381,14 @@ export function Swap({
     <form class="panel" autocomplete="off" onSubmit={(e) => void prepare(e)}>
       <h2 class="title">{s.title}</h2>
       <UsdcElsewhere t={t} wallet={wallet} />
+      {pending && (
+        <p class="note">
+          {t.bridge.pending}{' '}
+          <button type="button" class="linklike" onClick={() => setBridge({ resume: pending })}>
+            {t.bridge.look}
+          </button>
+        </p>
+      )}
       {nets.length > 1 && <span class="field-label">{s.network}</span>}
       {nets.length > 1 && (
         <div class="seg" role="tablist">
@@ -383,6 +428,20 @@ export function Swap({
             </button>
           ))}
       </div>
+      {others.length > 0 && (
+        <>
+          <span class="field-label">{t.bridge.other}</span>
+          <div class="seg seg--many" role="tablist">
+            {others.map((a) => (
+              <button key={a.id} type="button" role="tab" aria-selected={a.id === to.id} class="seg-item" onClick={() => setToId(a.id)}>
+                {a.ticker}
+                <span class="seg-net">{a.net}</span>
+              </button>
+            ))}
+          </div>
+          {to.net !== from.net && <p class="note">{t.bridge.trust}</p>}
+        </>
+      )}
       <label class="field">
         <span class="field-label">
           {s.amount}, {from.ticker}

@@ -110,3 +110,68 @@ describe('what the crossing service says about a deposit address', () => {
     expect(readCrossOrder(null)).toBeNull();
   });
 });
+
+import { crossAssetName, crossSwapRequest, readCrossDelivered, readCrossSwapQuote, swapFloor, type SwapOrder } from '../src/core/cross.ts';
+
+describe('a swap between networks', () => {
+  const me = '0x9858EfFD232B4033E47d90003D41EC34EcaEda94';
+  const deposit = '0x1234567890123456789012345678901234567890';
+  const swap: SwapOrder = {
+    origin: 'nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near',
+    destination: 'nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near',
+    recipient: me,
+    refundTo: me,
+    amountIn: 100_000_000n,
+    slippageBps: 50,
+    deadline: 1_800_000_000_000,
+  };
+  const reply = (quote: Record<string, unknown> = {}, request: Record<string, unknown> = {}) => ({
+    quote: { amountIn: '100000000', amountOut: '99900000', minAmountOut: '99400000', timeEstimate: 47, depositAddress: deposit, ...quote },
+    quoteRequest: { ...crossSwapRequest(swap, false), ...request },
+  });
+
+  it('names coins the way the service does', () => {
+    expect(crossAssetName('eth')).toBe('nep141:eth.omft.near');
+    expect(crossAssetName('base', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')).toBe(swap.destination);
+    expect(() => crossAssetName('tron', 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')).toThrow();
+  });
+
+  it('orders an exact amount given, to the wallet’s own addresses', () => {
+    expect(crossSwapRequest(swap, true)).toMatchObject({ dry: true, swapType: 'EXACT_INPUT', amount: '100000000', recipient: me, refundTo: me, recipientType: 'DESTINATION_CHAIN', refundType: 'ORIGIN_CHAIN' });
+    expect(crossSwapRequest(swap, true)).not.toHaveProperty('appFees');
+    expect(crossSwapRequest({ ...swap, fee: { recipient: me, bps: 30 } }, true)).toMatchObject({ appFees: [{ recipient: me, fee: 30 }] });
+  });
+
+  it('reads an answer to its own order', () => {
+    expect(readCrossSwapQuote(reply(), swap, false, 97_000_000n)).toEqual({ amountOut: 99_900_000n, minOut: 99_400_000n, depositAddress: deposit, seconds: 47 });
+    expect(readCrossSwapQuote(reply({ depositAddress: undefined }), swap, true, 97_000_000n).depositAddress).toBeNull();
+  });
+
+  it('refuses an answer to another order', () => {
+    for (const other of [{ recipient: deposit }, { refundTo: deposit }, { amount: '1' }, { destinationAsset: 'nep141:eth.omft.near' }, { swapType: 'EXACT_OUTPUT' }, { recipientType: 'INTENTS' }]) {
+      expect(() => readCrossSwapQuote(reply({}, other), swap, false, 0n)).toThrow('another order');
+    }
+  });
+
+  it('refuses a price below its own floor, and an amount other than the one given', () => {
+    expect(() => readCrossSwapQuote(reply(), swap, false, 99_500_000n)).toThrow('too dear');
+    expect(() => readCrossSwapQuote(reply({ amountIn: '100000001' }), swap, false, 0n)).toThrow('not the amount');
+    expect(() => readCrossSwapQuote(reply({ minAmountOut: '99900001' }), swap, false, 0n)).toThrow('malformed');
+  });
+
+  it('refuses a deposit address that is its own, has a memo, or is no address', () => {
+    for (const bad of [{ depositAddress: me }, { depositAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' }, { depositMemo: '7' }, { depositAddress: undefined }]) {
+      expect(() => readCrossSwapQuote(reply(bad), swap, false, 0n)).toThrow('no deposit address');
+    }
+  });
+
+  it('works out the floor: a share off for the price, a fixed sum off for the networks', () => {
+    expect(swapFloor(100_000_000n, 300n, 1_500_000n)).toBe(95_500_000n);
+    expect(swapFloor(1_000_000n, 300n, 1_500_000n)).toBe(0n);
+  });
+
+  it('reads what was delivered', () => {
+    expect(readCrossDelivered({ status: 'SUCCESS', swapDetails: { amountOut: '99880000' } })).toBe(99_880_000n);
+    expect(readCrossDelivered({ status: 'PROCESSING' })).toBeNull();
+  });
+});

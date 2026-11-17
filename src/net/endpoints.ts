@@ -291,6 +291,14 @@ export const CROSS = {
    */
   baseFee: 500_000n,
   tronService: 1_000_000n,
+  /**
+   * A swap between networks (see src/core/cross.ts). me7's own part, in hundredths of a percent of what is given;
+   * nought until the owner decides on it: the service credits such a fee inside its own accounts, not on a chain.
+   */
+  swapFeeBps: 0,
+  /** What a swap may lose against outside prices before it is refused: three percent, and three dollars for the networks' own costs. */
+  swapLossBps: 300n,
+  swapFlatUsd: 3,
 } as const;
 
 /** Tron addresses under sanctions, one per line: the list the Tron side of the service refuses to serve. */
@@ -309,7 +317,7 @@ export const SOURCE_URL = 'https://github.com/nomaddamone/me7-financial-infrastr
  * What the relay checks every address against before carrying a transfer (it never serves either kind):
  * Chainalysis's free sanctions oracle, a contract on Base (confirmed 2026-11-12: it flags a known
  * sanctioned address and clears ordinary ones), and ScamSniffer's public list of scam addresses.
- * Only the relay reads these; the page itself does not.
+ * The page asks the oracle too, about those who paid to the wallet (see src/core/quarantine.ts); the scam list only the relay reads.
  */
 export const SANCTIONS_ORACLE = '0x3A91A31cB3dC49b4db9Ce721F50a9D076c8D739B';
 /** Chainlink's ETH / USD feed on Base (8 decimals; confirmed 2026-11-12). The relay prices its gas expense with it. */

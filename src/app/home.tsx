@@ -24,12 +24,12 @@ import {
   type EvmTransaction,
 } from '../core/index.ts';
 import { gaslessFee, type GaslessPricing } from '../core/gasless.ts';
-import { isUsed, planAuthorizations, planCollect, planFromPockets, pocketOf, pocketTotals, type PaymentPlan, type Pocket, type PocketedPlan } from '../core/rotation.ts';
+import { isUsed, planAuthorizations, planCollect, planFromPockets, pocketOf, pocketTotals, type Holding, type PaymentPlan, type Pocket, type PocketedPlan } from '../core/rotation.ts';
 import { fetchBitcoinBalance, fetchEvmBalance, formatUnits } from '../net/balances.ts';
 import { GASLESS, hostOf, NET, TRON_GASLESS } from '../net/endpoints.ts';
 import { parseName } from '../core/names.ts';
 import { resolveName } from '../net/names.ts';
-import { fetchRelayPricing, fetchTronQuote, RelayError, relaySend, relayTronSend } from '../net/relay.ts';
+import { fetchRelayPricing, fetchTronQuote, RelayError, relayLook, relaySend, relayTronSend } from '../net/relay.ts';
 import { findEvmTransaction, PERIODS, type Change, type Period } from '../net/history.ts';
 import {
   broadcastBitcoin,
@@ -63,6 +63,8 @@ import { Naming } from './naming.tsx';
 import { canCross, CrossPay } from './crosspay.tsx';
 import { CrossList } from './crosslist.tsx';
 import { openCrossings, type Crossing } from './crossing.ts';
+import { HeldNote } from './held.tsx';
+import { markTold, quarantined, quarantineOf, syncQuarantine, type Quarantined } from './quarantine.ts';
 import { useOwnName } from './ownname.ts';
 import { addressCode } from '../core/payqr.ts';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
@@ -147,6 +149,9 @@ export function Qr({ text }: { text: string }) {
 }
 
 /** Sign a plan's permissions with the keys of the addresses involved and hand them to the relay. Returns the transaction hash. */
+/** The addresses a plan pays from are named to me7's service ahead of the payment (see relayLook). */
+export const announcePlan = (plan: PaymentPlan): void => relayLook([...new Set([...plan.sources.map((s) => s.holding.address), ...(plan.via ? [plan.via.address] : [])])]);
+
 export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[], cross = false): Promise<string> {
   const base = NET.base;
   if (!base) throw new Error('no Base network');
@@ -159,7 +164,14 @@ export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: Stealt
   });
   const [fee, ...transfers] = signWithAddresses(wallet, { ...GASLESS.domain, chainId: base.chainId, contract: base.usdc }, [unsigned.fee, ...unsigned.transfers]);
   if (!fee) throw new Error('nothing to sign');
-  const hash = await relaySend({ chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}), ...(cross ? { cross: true } : {}) });
+  let hash: string;
+  try {
+    hash = await relaySend({ chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}), ...(cross ? { cross: true } : {}) });
+  } catch (err) {
+    // The service found one of the addresses in quarantine: the wallet marks it, and the next payment goes round it.
+    if (err instanceof RelayError && err.code === 'held' && err.address) markTold(wallet, 'base', err.address);
+    throw err;
+  }
   // What was just read about the addresses is out of date now.
   void loadRotation(wallet, true).catch(() => undefined);
   return hash;
@@ -168,7 +180,11 @@ export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: Stealt
 export const relayErrorText = (t: Dict, err: unknown): string => {
   const g = t.gasless;
   if (!(err instanceof RelayError)) return `${t.sendFailed} ${err instanceof Error ? err.message : String(err)}`;
-  return err.code === 'limit'
+  return err.code === 'held'
+    ? t.held.errService
+    : err.code === 'checking'
+    ? t.held.errChecking
+    : err.code === 'limit'
     ? g.errLimit
     : err.code === 'blocked'
       ? g.errBlocked
@@ -202,14 +218,17 @@ function AddressList({ t, wallet, rotation, prices, onChanged }: { t: Dict; wall
   // Only the rotating addresses are brought onto the main one: stealth money moved there would be tied to it for all to see.
   const elsewhere = rotation.holdings.filter((h) => h.index !== 0 && h.balance > 0n && pocketOf(h) === 'plain');
   const hidden = pocketTotals(rotation.holdings).stealth;
+  const marks = quarantined(wallet);
+  const markOf = (h: Holding) => marks.find((m) => m.chain === 'base' && m.address === h.address.toLowerCase());
 
   const prepare = async () => {
     setError('');
     const pricing = await fetchRelayPricing();
     if (!pricing) return setError(g.unavailable);
-    const next = planCollect((await loadRotation(wallet, true)).holdings.filter((h) => pocketOf(h) === 'plain'), pricing);
+    const next = planCollect((await loadRotation(wallet, true)).spendable.filter((h) => pocketOf(h) === 'plain'), pricing);
     if (next === 'no-funds') return setError(t.noFunds);
     if (next === 'too-many') return setError(g.tooMany);
+    announcePlan(next);
     setPlan(next);
     setStep('review');
   };
@@ -233,13 +252,14 @@ function AddressList({ t, wallet, rotation, prices, onChanged }: { t: Dict; wall
     <>
       <ul class="rows addr-rows">
         {shown.map((h) => (
-          <li key={h.index} class="addr-row">
+          <li key={h.index} class={markOf(h) ? 'addr-row addr-row--held' : 'addr-row'}>
             <span class="addr-row-name">
               <code>{shortAddress(h.address)}</code>
               <span class="dim">{h.index === 0 ? g.addrMain : h.index === rotation.receive.index ? g.addrNext : h.index >= STEALTH_INDEX ? `stealth #${h.index - STEALTH_INDEX + 1}` : `#${h.index}`}</span>
             </span>
             <span class="addr-row-sum">{amountText(usdc, h.balance)}</span>
             <CopyButton t={t} value={h.address} />
+            {markOf(h) && <HeldNote t={t} wallet={wallet} mark={markOf(h) as Quarantined} holding={h} onChanged={onChanged} amount={`${amountText(usdc, BigInt((markOf(h) as Quarantined).amount))} ${usdc.ticker}`} />}
           </li>
         ))}
       </ul>
@@ -466,7 +486,7 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
   );
 }
 
-type ProblemCode = 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany' | 'frozenTo' | 'frozenMe' | 'needsMix' | 'pocketShort';
+type ProblemCode = 'noFunds' | 'noGas' | 'noRelay' | 'noTron' | 'tooMany' | 'frozenTo' | 'frozenMe' | 'needsMix' | 'pocketShort' | 'held' | 'heldShort';
 /** A problem the user can fix, shown as a message on the form. */
 class Problem extends Error {
   readonly code: ProblemCode;
@@ -568,6 +588,8 @@ async function prepareTron(wallet: Wallet, asset: AssetDef, recipient: string, u
  */
 async function prepareTronless(wallet: Wallet, asset: AssetDef, recipient: string, units: bigint | null): Promise<Prepared> {
   if (!asset.contract) throw new Problem('noGas');
+  // An address in quarantine is not served: its owner pays the network in TRX, by their own means.
+  if (quarantineOf(wallet, 'tron', wallet.tron)) throw new Problem('held');
   const held = await fetchTrc20Balance(NET.tron.nodes, asset.contract, wallet.tron);
   if (held <= 0n) throw new Problem('noFunds');
   try {
@@ -592,7 +614,12 @@ async function sendTronless(wallet: Wallet, prepared: Extract<Prepared, { kind: 
   const ref = { ...tronRef(block, Date.now()), expiration: block.timestamp + TRON_GASLESS.lifetime };
   const main = buildTrc20Transfer(wallet.tron, contract, prepared.to, prepared.amount, ref, TRON_GASLESS.feeLimit);
   const fee = buildTrc20Transfer(wallet.tron, contract, prepared.receiver, prepared.fee, ref, TRON_GASLESS.feeLimit);
-  return withTronKey(wallet, (key) => relayTronSend(signTronTransaction(main, key).signedHex, signTronTransaction(fee, key).signedHex));
+  try {
+    return await withTronKey(wallet, (key) => relayTronSend(signTronTransaction(main, key).signedHex, signTronTransaction(fee, key).signedHex));
+  } catch (err) {
+    if (err instanceof RelayError && err.code === 'held') markTold(wallet, 'tron', wallet.tron);
+    throw err;
+  }
 }
 
 /** Sign and broadcast a prepared transfer of any coin but relayed USDC. Returns the transaction id. */
@@ -726,7 +753,7 @@ function Send({
       setRelayAsked(true);
     });
     loadRotation(wallet).then(
-      (r) => live && setTotals(pocketTotals(r.holdings)),
+      (r) => live && setTotals(pocketTotals(r.spendable)),
       () => undefined,
     );
     return () => {
@@ -748,13 +775,15 @@ function Send({
     }
     setPricing(prices);
     // The fee comes out of the same USDC, on top of what the recipient gets.
-    setTotals(pocketTotals(rotation.holdings));
+    setTotals(pocketTotals(rotation.spendable));
     // Stealth money pays stealth codes and the rest pays ordinary addresses; the two are joined only when the user has agreed.
-    const planned = planFromPockets(rotation.holdings, units === null ? { all: recipient } : [{ to: recipient, value: units }], prices, rotation.fresh, { prefer, choice: pocket, mix });
-    if (planned === 'no-funds') throw new Problem('noFunds');
+    const planned = planFromPockets(rotation.spendable, units === null ? { all: recipient } : [{ to: recipient, value: units }], prices, rotation.fresh, { prefer, choice: pocket, mix });
+    // Money on a quarantined address is the user's, but me7's service does not pay from it: say so, and not "no funds".
+    if (planned === 'no-funds') throw new Problem(rotation.spendable.length < rotation.holdings.length ? 'heldShort' : 'noFunds');
     if (planned === 'too-many') throw new Problem('tooMany');
     if (planned === 'needs-mix') throw new Problem('needsMix');
     if (planned === 'pocket-short') throw new Problem('pocketShort');
+    announcePlan(planned.plan);
     const { plan, from, joined } = planned;
     return { kind: 'gasless', asset, to: recipient, amount: plan.payouts[0]?.value ?? 0n, fee: plan.fee, plan, from, joined };
   };
@@ -830,6 +859,10 @@ function Send({
               ? t.guard.frozenTo
               : code === 'frozenMe'
                 ? t.guard.frozenMe
+              : code === 'held'
+                ? t.held.errSend
+              : code === 'heldShort'
+                ? t.held.errShort
             : code === 'noRelay'
               ? t.gasless.unavailable
               : code === 'noTron'
@@ -1434,11 +1467,12 @@ function MultiSend({ t, wallet, prices, onClose }: { t: Dict; wallet: Wallet; pr
         });
         if (notes.length > GASLESS_MAX_NOTES) throw new Problem('tooMany');
         // A run made only of stealth codes is paid with stealth money first; any other with the rest. The pockets are joined only on a second press.
-        const planned = planFromPockets(rotation.holdings, payouts, pricing, rotation.fresh, { prefer: notes.length === rows.length ? 'stealth' : 'plain', choice: 'auto', mix: mixOk === mixKey });
+        const planned = planFromPockets(rotation.spendable, payouts, pricing, rotation.fresh, { prefer: notes.length === rows.length ? 'stealth' : 'plain', choice: 'auto', mix: mixOk === mixKey });
         if (planned === 'no-funds') throw new Problem('noFunds');
         if (planned === 'too-many') throw new Problem('tooMany');
         if (planned === 'needs-mix') throw new Problem('needsMix');
         if (planned === 'pocket-short') throw new Problem('noFunds');
+        announcePlan(planned.plan);
         setBatch({ kind: 'relay', asset, rows, fee: planned.plan.fee, plan: planned.plan, notes, from: planned.from, joined: planned.joined });
       } else {
         const evm = networkOf(asset) === 'evm';
@@ -1940,6 +1974,11 @@ function AssetView({
         </div>
       </section>
 
+      {a.contract === NET.tron.usdt && quarantineOf(wallet, 'tron', wallet.tron) && (
+        <section class="panel">
+          <HeldNote t={t} wallet={wallet} mark={quarantineOf(wallet, 'tron', wallet.tron) as Quarantined} amount={`${amountText(a, BigInt((quarantineOf(wallet, 'tron', wallet.tron) as Quarantined).amount))} ${a.ticker}`} />
+        </section>
+      )}
       {a.contract === NET.tron.usdt && canCross(wallet) && <CrossList t={t} wallet={wallet} />}
 
       <section class="panel">
@@ -2731,6 +2770,8 @@ export function Home({ t, wallet, onExit }: { t: Dict; wallet: Wallet; onExit: (
   // The address book is fetched once the wallet is open, so the contacts are there by the time money is sent.
   useEffect(() => {
     void syncContacts(wallet);
+    // Who paid to the wallet's addresses is looked at in the background; a listed sender puts that one address in quarantine.
+    void syncQuarantine(wallet).catch(() => undefined);
   }, [wallet]);
   // Tapping the tab that is already open takes its screen back to the first page.
   const [home, setHome] = useState(0);

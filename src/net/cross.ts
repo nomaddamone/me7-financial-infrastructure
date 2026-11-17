@@ -1,4 +1,4 @@
-import { crossQuoteRequest, readCrossQuote, readCrossStatus, type CrossLimits, type CrossOrder, type CrossQuote, type CrossState } from '../core/cross.ts';
+import { crossQuoteRequest, crossSwapRequest, readCrossDelivered, readCrossQuote, readCrossStatus, readCrossSwapQuote, type CrossLimits, type CrossOrder, type CrossQuote, type CrossState, type SwapOrder, type SwapQuote } from '../core/cross.ts';
 
 async function ask(url: string, init?: RequestInit): Promise<unknown> {
   const controller = new AbortController();
@@ -32,5 +32,26 @@ export async function fetchCrossState(api: string, depositAddress: string): Prom
     return readCrossStatus(await ask(`${api}/status?depositAddress=${depositAddress}`));
   } catch {
     return null;
+  }
+}
+
+/**
+ * Ask the service about a swap between networks. When it declines (too small a sum, a pair it does
+ * not serve just now), its own words are raised, so the user reads why.
+ */
+export async function fetchCrossSwapQuote(api: string, order: SwapOrder, dry: boolean, floor: bigint): Promise<SwapQuote> {
+  const answer = await ask(`${api}/quote`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(crossSwapRequest(order, dry)) });
+  const said = (answer as { quote?: unknown; message?: unknown } | null) ?? {};
+  if (!said.quote && typeof said.message === 'string') throw new Error(said.message.slice(0, 140));
+  return readCrossSwapQuote(answer, order, dry, floor);
+}
+
+/** Where a swap stands, and what was delivered once it is done. */
+export async function fetchCrossProgress(api: string, depositAddress: string): Promise<{ state: CrossState | null; delivered: bigint | null }> {
+  try {
+    const answer = await ask(`${api}/status?depositAddress=${depositAddress}`);
+    return { state: readCrossStatus(answer), delivered: readCrossDelivered(answer) };
+  } catch {
+    return { state: null, delivered: null };
   }
 }

@@ -675,3 +675,88 @@
   color: inherit;
 }
 
+
+/* An address in quarantine (see src/core/quarantine.ts): a warning sign and the word; the details open on a press. */
+.held {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.held-tag {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 11px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+.held-tag:focus-visible {
+  outline: 1px solid var(--danger);
+  outline-offset: 3px;
+}
+.held-why,
+.held-from,
+.held-lead {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.held-why {
+  color: var(--danger);
+}
+.held-from {
+  font-family: var(--mono);
+  color: var(--dim);
+}
+.held-lead {
+  color: var(--dim);
+  max-width: 52ch;
+}
+.held-out {
+  margin-top: 4px;
+}
+.held-sign {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.addr-row--held .addr-row-sum {
+  color: var(--danger);
+}
+.held-tag {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.held-form {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  width: 100%;
+  margin-top: 4px;
+}
+.held-form .field {
+  width: 100%;
+}
+.held-addr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* A coin on another network in the swap form: its network is written beside its name. */
+.seg--many .seg-net {
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.6;
+}
