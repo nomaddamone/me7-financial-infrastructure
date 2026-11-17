@@ -1,0 +1,157 @@
+/* The swap form: two coins, an amount, and what it buys. One box, a line between the two sides, the arrow sitting on the line. */
+.swapf {
+  display: grid;
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.swapf-side {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+.swapf-side:last-of-type {
+  border-top: 1px solid var(--line);
+}
+.swapf-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.swapf-amount {
+  all: unset;
+  flex: 1;
+  min-width: 0;
+  font: 20px var(--mono);
+  color: var(--fg);
+}
+.swapf-amount::placeholder {
+  color: var(--dim);
+}
+.swapf-amount:disabled {
+  color: var(--dim);
+}
+.swapf-est {
+  flex: 1;
+  min-width: 0;
+  font: 20px var(--mono);
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swapf-est--none {
+  color: var(--dim);
+}
+.swapf-sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--dim);
+  min-height: 16px;
+}
+.swapf-coin {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--fg);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.swapf-coin:focus-visible,
+.swapf-flip:focus-visible,
+.swapf-row:focus-visible,
+.swapf-max:focus-visible {
+  outline: 1px solid var(--fg);
+  outline-offset: 2px;
+}
+.swapf-coin-name {
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.swapf-coin-net,
+.swapf-coin-mark {
+  font-size: 11px;
+  color: var(--dim);
+}
+.swapf-flip {
+  all: unset;
+  cursor: pointer;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  width: 34px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--fg);
+}
+.swapf-flip:disabled {
+  color: var(--line);
+  cursor: default;
+}
+.swapf-max {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--dim);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.swapf-max[aria-pressed='true'] {
+  color: var(--fg);
+  text-decoration: underline;
+}
+.swapf-list {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.swapf-group {
+  display: grid;
+  gap: 2px;
+}
+.swapf-rows {
+  margin: 0;
+}
+.rows .swapf-rows li,
+.swapf-rows li {
+  padding: 0;
+}
+.swapf-row {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 4px;
+}
+.swapf-row:hover,
+.swapf-row[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.swapf-row-name {
+  text-transform: uppercase;
+}
+.swapf-row-name .dim {
+  text-transform: none;
+  font-size: 12px;
+}
+.swapf-row-sum {
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}

@@ -107,6 +107,11 @@ export async function planBridge(wallet: Wallet, from: AssetDef, to: AssetDef, u
   return { from, to, amountIn, quote, gas };
 }
 
+/** What an amount would buy on another network, for the form to show while it is typed. Binds nobody and checks no balance. */
+export async function estimateBridge(wallet: Wallet, from: AssetDef, to: AssetDef, amountIn: bigint): Promise<bigint> {
+  return (await fetchCrossSwapQuote(CROSS.api, order(wallet, from, to, amountIn, Date.now() + CROSS.lifetime), true, 0n)).amountOut;
+}
+
 const storeKey = (wallet: Wallet) => `me7.bridge.${NET.mode}.${wallet.evm.toLowerCase()}`;
 const isText = (v: unknown): v is string => typeof v === 'string';
 

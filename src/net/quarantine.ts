@@ -23,13 +23,13 @@ export async function fetchIncomingAt(rpc: readonly string[], token: string, own
  * the same nodes the wallet already reads, in one request per hundred senders, and no address
  * goes to anyone else. A sender on neither list is absent from the answer.
  */
-export async function screenSenders(rpc: readonly string[], token: string, oracle: string, senders: readonly string[]): Promise<Map<string, Taint>> {
+export async function screenSenders(rpc: readonly string[], token: string, oracle: string, senders: readonly string[], frozenCall = 'isBlacklisted(address)'): Promise<Map<string, Taint>> {
   const flagged = new Map<string, Taint>();
   for (let at = 0; at < senders.length; at += 100) {
     const part = senders.slice(at, at + 100);
     const calls: AbiValue[] = part.flatMap((s) => [
       [oracle, true, encodeCall('isSanctioned(address)', [address], [s])],
-      [token, true, encodeCall('isBlacklisted(address)', [address], [s])],
+      [token, true, encodeCall(frozenCall, [address], [s])],
     ]);
     const answer = await evmRpc(rpc, 'eth_call', [{ to: MULTICALL3, data: hexOf(encodeCall('aggregate3((address,bool,bytes)[])', [array(tuple(address, bool, bytes))], [calls])) }, 'latest']);
     if (typeof answer !== 'string' || !/^0x([0-9a-fA-F]{2})*$/.test(answer)) throw new Error('Malformed response');

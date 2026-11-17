@@ -11,9 +11,10 @@ import { buildSwap, fetchSwapRoute, fetchTokenAllowance, type SwapRoute } from '
 import { ASSETS, BASE_L1_RESERVE, evmOf, type AssetDef } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { Spinner } from './fx.tsx';
-import { bridgeTargets, openBridgings, type Bridging } from './bridge.ts';
+import { bridgeTargets, estimateBridge, openBridgings, type Bridging } from './bridge.ts';
 import { Bridge } from './bridge.tsx';
 import type { Dict } from './i18n.ts';
+import { CoinButton, CoinList } from './swapform.tsx';
 import { quarantineOf } from './quarantine.ts';
 import { isSessionPassword, type Wallet } from './wallet.ts';
 
@@ -86,12 +87,9 @@ export function Swap({
   onSwapped?: (result: SwapResult) => void;
 }) {
   const s = t.swap;
-  const nets = [...new Set(SWAPPABLE.map((a) => a.net))];
   const start = SWAPPABLE.find((a) => a.id === initial?.fromId);
-  const [net, setNet] = useState(start?.net ?? nets[0] ?? '');
-  const here = SWAPPABLE.filter((a) => a.net === net);
-  const [fromId, setFromId] = useState(start?.id ?? here[0]?.id ?? '');
-  const [toId, setToId] = useState(initial?.toId ?? here[1]?.id ?? '');
+  const [fromId, setFromId] = useState(start?.id ?? SWAPPABLE[0]?.id ?? '');
+  const [toId, setToId] = useState(initial?.toId ?? '');
   const [amount, setAmount] = useState(start && initial?.amount !== undefined ? formatUnits(initial.amount, start.decimals, start.decimals) : '');
   const [all, setAll] = useState(initial?.all === true);
   const [view, setView] = useState<'form' | 'review' | 'running' | 'done'>('form');
@@ -105,7 +103,14 @@ export function Swap({
   const [bridge, setBridge] = useState<{ order?: { from: AssetDef; to: AssetDef; units: bigint | null }; resume?: Bridging } | null>(null);
   const [pending, setPending] = useState<Bridging | null>(() => openBridgings(wallet)[0] ?? null);
 
-  const from = here.find((a) => a.id === fromId) ?? here[0];
+  // Which coin list is open, what the wallet holds of each coin, and what the amount typed would buy.
+  const [picking, setPicking] = useState<'from' | 'to' | null>(null);
+  const [balances, setBalances] = useState<Record<string, bigint>>({});
+  const [estimate, setEstimate] = useState<{ key: string; out: bigint | null } | null>(null);
+
+  const from = SWAPPABLE.find((a) => a.id === fromId) ?? SWAPPABLE[0];
+  // A coin is swapped within its own network, or for a coin on another one through the crossing service.
+  const here = SWAPPABLE.filter((a) => a.net === from?.net);
   const others = from ? bridgeTargets(from) : [];
   const to = [...here, ...others].find((a) => a.id === toId && a.id !== from?.id) ?? here.find((a) => a.id !== from?.id);
   useEffect(() => {
@@ -118,12 +123,54 @@ export function Swap({
   const chain = evmOf(from);
   const network = chain.swap ?? '';
 
-  const pickNet = (name: string) => {
-    const list = SWAPPABLE.filter((a) => a.net === name);
-    setNet(name);
-    setFromId(list[0]?.id ?? '');
-    setToId(list[1]?.id ?? '');
+  useEffect(() => {
+    let live = true;
+    for (const a of SWAPPABLE) {
+      const held = a.kind === 'eth' ? fetchEvmBalance(evmOf(a).rpc, wallet.evm).then((r) => r.value) : fetchErc20Balance(evmOf(a).rpc, a.contract ?? '', wallet.evm);
+      void held.then(
+        (units) => live && setBalances((known) => ({ ...known, [a.id]: units })),
+        () => undefined,
+      );
+    }
+    return () => {
+      live = false;
+    };
+  }, [wallet]);
+
+  // What the amount would buy, asked a moment after the typing stops. It binds nobody: the review asks again.
+  const wanted = all ? (from.kind === 'eth' ? null : (balances[from.id] ?? null)) : parseUnits(amount, from.decimals);
+  const estimateKey = `${from.id}>${to.id}>${wanted ?? ''}`;
+  useEffect(() => {
+    if (view !== 'form' || bridge || wanted === null || wanted <= 0n) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      const asked = to.net === from.net ? fetchSwapRoute(network, { tokenIn: tokenOf(from), tokenOut: tokenOf(to), amountIn: wanted }).then((r) => r.amountOut) : estimateBridge(wallet, from, to, wanted);
+      void asked.then(
+        (out) => live && setEstimate({ key: estimateKey, out }),
+        () => live && setEstimate({ key: estimateKey, out: null }),
+      );
+    }, 700);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimateKey, view, !!bridge]);
+
+  const pick = (side: 'from' | 'to', a: AssetDef) => {
+    setPicking(null);
     setError('');
+    if (side === 'to') return setToId(a.id);
+    // The coin given changed: the coin wanted stays if it can still be had for it.
+    if (a.id === to.id) setToId(from.id);
+    setFromId(a.id);
+  };
+  const canFlip = SWAPPABLE.some((a) => a.id === to.id);
+  const flip = () => {
+    if (!canFlip) return;
+    setError('');
+    setFromId(to.id);
+    setToId(from.id);
   };
 
   const prepare = async (e?: Event) => {
@@ -377,6 +424,60 @@ export function Swap({
   }
 
   const typed = all ? null : parseUnits(amount, from.decimals);
+  const known = estimate && estimate.key === estimateKey ? estimate : null;
+  const giveCoin = <CoinButton asset={from} open={picking === 'from'} label={s.from} onToggle={() => setPicking((p) => (p === 'from' ? null : 'from'))} />;
+  const getCoin = <CoinButton asset={to} open={picking === 'to'} label={s.to} onToggle={() => setPicking((p) => (p === 'to' ? null : 'to'))} />;
+  const flipButton = (
+    <button type="button" class="swapf-flip" disabled={!canFlip} aria-label={s.flip} title={s.flip} onClick={flip}>
+      ⇅
+    </button>
+  );
+  const amountInput = (
+    <input class="swapf-amount" type="text" inputMode="decimal" aria-label={`${s.amount}, ${from.ticker}`} placeholder={all ? t.sendAllHint : '0.0'} disabled={all} value={all ? '' : amount} onInput={(e) => setAmount(e.currentTarget.value)} />
+  );
+  const estimateNode =
+    wanted === null || wanted <= 0n ? (
+      <span class="swapf-est swapf-est--none">0.0</span>
+    ) : !known ? (
+      <span class="swapf-est swapf-est--none">
+        <Spinner />
+      </span>
+    ) : known.out === null ? (
+      <span class="swapf-est swapf-est--none">—</span>
+    ) : (
+      <span class="swapf-est">≈ {text(to, known.out)}</span>
+    );
+  const giveSub = (
+    <div class="swapf-sub">
+      <span aria-live="polite">{typed !== null && typed > 0n && prices ? usdOf(from, typed, prices).trim() : ' '}</span>
+      <span>
+        {balances[from.id] !== undefined && `${s.balance} ${text(from, balances[from.id] as bigint)} `}
+        <button type="button" class="swapf-max" aria-pressed={all} onClick={() => setAll((v) => !v)}>
+          {t.sendMax}
+        </button>
+      </span>
+    </div>
+  );
+  const getSub = (
+    <div class="swapf-sub">
+      <span>{known?.out && prices ? usdOf(to, known.out, prices).trim() : ' '}</span>
+      <span>{balances[to.id] !== undefined && `${s.balance} ${text(to, balances[to.id] as bigint)}`}</span>
+    </div>
+  );
+  const list =
+    picking === 'from' ? (
+      <CoinList groups={[{ title: '', list: SWAPPABLE }]} chosen={from.id} balances={balances} onPick={(a) => pick('from', a)} />
+    ) : picking === 'to' ? (
+      <CoinList
+        groups={[
+          { title: s.sameNet.replace('{net}', from.net), list: here.filter((a) => a.id !== from.id) },
+          { title: s.otherNet, list: others },
+        ]}
+        chosen={to.id}
+        balances={balances}
+        onPick={(a) => pick('to', a)}
+      />
+    ) : null;
   return (
     <form class="panel" autocomplete="off" onSubmit={(e) => void prepare(e)}>
       <h2 class="title">{s.title}</h2>
@@ -389,81 +490,27 @@ export function Swap({
           </button>
         </p>
       )}
-      {nets.length > 1 && <span class="field-label">{s.network}</span>}
-      {nets.length > 1 && (
-        <div class="seg" role="tablist">
-          {nets.map((name) => (
-            <button key={name} type="button" role="tab" aria-selected={name === net} class="seg-item" onClick={() => pickNet(name)}>
-              {name}
-            </button>
-          ))}
-        </div>
-      )}
-      <span class="field-label">{s.from}</span>
-      <div class="seg seg--many" role="tablist">
-        {here.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            role="tab"
-            aria-selected={a.id === from.id}
-            class="seg-item"
-            onClick={() => {
-              if (a.id === to.id) setToId(from.id);
-              setFromId(a.id);
-              setError('');
-            }}
-          >
-            {a.ticker}
-          </button>
-        ))}
-      </div>
-      <span class="field-label">{s.to}</span>
-      <div class="seg seg--many" role="tablist">
-        {here
-          .filter((a) => a.id !== from.id)
-          .map((a) => (
-            <button key={a.id} type="button" role="tab" aria-selected={a.id === to.id} class="seg-item" onClick={() => setToId(a.id)}>
-              {a.ticker}
-            </button>
-          ))}
-      </div>
-      {others.length > 0 && (
-        <>
-          <span class="field-label">{t.bridge.other}</span>
-          <div class="seg seg--many" role="tablist">
-            {others.map((a) => (
-              <button key={a.id} type="button" role="tab" aria-selected={a.id === to.id} class="seg-item" onClick={() => setToId(a.id)}>
-                {a.ticker}
-                <span class="seg-net">{a.net}</span>
-              </button>
-            ))}
+      <div class="swapf">
+        <div class="swapf-side">
+          <span class="field-label">{s.from}</span>
+          <div class="swapf-line">
+            {amountInput}
+            {giveCoin}
           </div>
-          {to.net !== from.net && <p class="note">{t.bridge.trust}</p>}
-        </>
-      )}
-      <label class="field">
-        <span class="field-label">
-          {s.amount}, {from.ticker}
-        </span>
-        <span class="amount-row">
-          <input
-            class="input"
-            type="text"
-            inputMode="decimal"
-            placeholder={all ? t.sendAllHint : '0.0'}
-            disabled={all}
-            value={all ? '' : amount}
-            onInput={(e) => setAmount(e.currentTarget.value)}
-          />
-          <button type="button" class={`btn${all ? ' btn--accent' : ''}`} aria-pressed={all} onClick={() => setAll((v) => !v)}>
-            {t.sendMax}
-          </button>
-        </span>
-        <span class="dim amount-usd" aria-live="polite">
-          {typed !== null && typed > 0n && prices ? usdOf(from, typed, prices).trim() : ' '}
-        </span>
-      </label>
+          {giveSub}
+        </div>
+        {flipButton}
+        <div class="swapf-side">
+          <span class="field-label">{s.to}</span>
+          <div class="swapf-line">
+            {estimateNode}
+            {getCoin}
+          </div>
+          {getSub}
+        </div>
+      </div>
+      {list}
+      {to.net !== from.net && <p class="note">{t.bridge.trust}</p>}
       {error && (
         <p class="alert" role="alert">
           {error}

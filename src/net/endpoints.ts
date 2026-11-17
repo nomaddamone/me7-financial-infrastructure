@@ -265,6 +265,38 @@ export const TRON_GASLESS = {
 } as const;
 
 /**
+ * USDT and USDC on Ethereum without ETH: the pocket signs two ordinary transfers, the fee and the payment, and
+ * me7's service, under /relay/eth, puts the ETH they will burn on the pocket's address and sends them (see
+ * src/core/ethgas.ts). Main network only.
+ */
+export const ETH_GASLESS = {
+  path: '/relay/eth',
+  /** The service's own part of the fee, in the tokens' units (six decimals): 1.3 dollars, set by the owner on 2026-11-17. The gas it lends is charged on top. */
+  service: 1_300_000n,
+  /** The pocket refuses terms above this (25 dollars): the service is wrong or the network is on fire. */
+  maxFee: 25_000_000n,
+  /** Payments below five dollars are not served: the gas lent must be little beside the money moved. */
+  minAmount: 5_000_000n,
+  /** Above 30 gwei the service asks to wait, and the pocket agrees to no more per unit of gas. */
+  maxGasPrice: 30_000_000_000n,
+  maxGas: 150_000n,
+  /** The least tip per unit of gas, half a gwei: the transfers go to the block builders as one bundle, and it must be worth their while. */
+  minTip: 500_000_000n,
+  /** How long the pocket waits to hear how a pair ended, in milliseconds: a little longer than the service offers it for. */
+  waitMs: 150_000,
+  /** Flashbots' relay, which passes a bundle on to the block builders. Only the service talks to it. */
+  bundleRelay: 'https://relay.flashbots.net',
+  /** The tokens served, and how each one's issuer is asked whether an address is frozen (both confirmed against the contracts on 2026-11-17). */
+  tokens: {
+    '0xdac17f958d2ee523a2206206994597c13d831ec7': { frozen: 'isBlackListed(address)' },
+    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': { frozen: 'isBlacklisted(address)' },
+  } as Readonly<Record<string, { frozen: string }>>,
+  /** Chainalysis's sanctions oracle and Chainlink's ETH / USD feed on Ethereum (both confirmed 2026-11-17). */
+  sanctionsOracle: '0x40C57923924B5c5c5455c48D93317139ADDaC8fb',
+  priceFeed: '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419',
+} as const;
+
+/**
  * Paying USDT on Tron out of USDC on Base. The two are different networks, so the money crosses
  * through a third party: NEAR Intents (its 1Click service). The wallet sends USDC to an address
  * the service names, and the service delivers USDT to a new Tron address of this wallet. While it

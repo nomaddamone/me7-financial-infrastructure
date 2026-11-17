@@ -1,7 +1,7 @@
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
-import { isValidEvmAddress } from './evm.ts';
+import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils.js';
+import { isValidEvmAddress, toChecksumAddress } from './evm.ts';
 
 /** An EIP-1559 (type 2) transaction: the format every current EVM chain accepts. */
 export interface EvmTransaction {
@@ -111,6 +111,103 @@ export function signEvmTransaction(tx: EvmTransaction, privateKey: Uint8Array): 
   // 'recovered' = recovery id (0 or 1) followed by r and s; prehash is off because we hash with keccak ourselves.
   const sig = secp256k1.sign(digest, privateKey, { prehash: false, format: 'recovered' });
   return assembleEvmTransaction(tx, { yParity: sig[0] ?? 0, r: sig.slice(1, 33), s: sig.slice(33, 65) });
+}
+
+/** Read RLP back into its items. Strict: anything a careful encoder would not have written is refused. */
+export function rlpDecode(data: Uint8Array): Rlp {
+  const read = (at: number): { item: Rlp; end: number } => {
+    const first = data[at];
+    if (first === undefined) throw new Error('Malformed RLP');
+    const length = (from: number, size: number): number => {
+      if (size < 1 || size > 4 || from + size > data.length || data[from] === 0) throw new Error('Malformed RLP');
+      let n = 0;
+      for (let i = 0; i < size; i++) n = n * 256 + (data[from + i] as number);
+      if (n < 56) throw new Error('Malformed RLP');
+      return n;
+    };
+    const slice = (from: number, size: number) => {
+      if (from + size > data.length) throw new Error('Malformed RLP');
+      return data.subarray(from, from + size);
+    };
+    if (first < 0x80) return { item: data.subarray(at, at + 1), end: at + 1 };
+    if (first < 0xb8) {
+      const body = slice(at + 1, first - 0x80);
+      if (body.length === 1 && (body[0] as number) < 0x80) throw new Error('Malformed RLP');
+      return { item: body, end: at + 1 + body.length };
+    }
+    if (first < 0xc0) {
+      const size = first - 0xb7;
+      const n = length(at + 1, size);
+      return { item: slice(at + 1 + size, n), end: at + 1 + size + n };
+    }
+    const size = first < 0xf8 ? 0 : first - 0xf7;
+    const n = size === 0 ? first - 0xc0 : length(at + 1, size);
+    const end = at + 1 + size + n;
+    if (end > data.length) throw new Error('Malformed RLP');
+    const list: Rlp[] = [];
+    for (let next = at + 1 + size; next < end; ) {
+      const one = read(next);
+      list.push(one.item);
+      next = one.end;
+      if (next > end) throw new Error('Malformed RLP');
+    }
+    return { item: list, end };
+  };
+  const { item, end } = read(0);
+  if (end !== data.length) throw new Error('Malformed RLP');
+  return item;
+}
+
+/**
+ * Read a signed transaction (0x-hex, as it is broadcast) back into its parts, with the address
+ * that signed it. Only the kind this wallet makes is understood: type 2, no access list.
+ * Reading and writing it again gives the same bytes, or it is refused.
+ */
+export function readSignedEvmTransaction(raw: string): { tx: EvmTransaction; from: string; hash: string } {
+  if (!/^0x02([0-9a-fA-F]{2})+$/.test(raw) || raw.length > 2048) throw new Error('Not a transaction of the kind expected');
+  const bytes = hexToBytes(raw.slice(2));
+  const list = rlpDecode(bytes.subarray(1));
+  if (!Array.isArray(list) || list.length !== 12) throw new Error('Not a transaction of the kind expected');
+  const part = (i: number): Uint8Array => {
+    const item = list[i];
+    if (!(item instanceof Uint8Array)) throw new Error('Not a transaction of the kind expected');
+    return item;
+  };
+  const number = (i: number): bigint => {
+    const b = part(i);
+    if (b.length > 32 || b[0] === 0) throw new Error('Not a transaction of the kind expected');
+    return b.length === 0 ? 0n : BigInt(`0x${bytesToHex(b)}`);
+  };
+  const access = list[8];
+  if (!Array.isArray(access) || access.length !== 0 || part(5).length !== 20) throw new Error('Not a transaction of the kind expected');
+  const data = part(7);
+  const tx: EvmTransaction = {
+    chainId: number(0),
+    nonce: number(1),
+    maxPriorityFeePerGas: number(2),
+    maxFeePerGas: number(3),
+    gasLimit: number(4),
+    to: toChecksumAddress(`0x${bytesToHex(part(5))}`),
+    value: number(6),
+    ...(data.length > 0 ? { data: Uint8Array.from(data) } : {}),
+  };
+  const yParity = Number(number(9));
+  const pad = (n: bigint) => hexToBytes(n.toString(16).padStart(64, '0'));
+  const signature = { yParity, r: pad(number(10)), s: pad(number(11)) };
+  const again = assembleEvmTransaction(tx, signature);
+  if (again.raw !== raw.toLowerCase()) throw new Error('Not a transaction of the kind expected');
+  return { tx, from: toChecksumAddress(`0x${bytesToHex(recoverEvmSigner(tx, signature))}`), hash: again.hash };
+}
+
+/**
+ * Sign a line of text the way wallets sign messages (EIP-191): the text is prefixed so that it can
+ * never be mistaken for a transaction. Returns the signature as 0x-hex: r, s and the recovery byte.
+ */
+export function signEvmMessage(text: string, privateKey: Uint8Array): string {
+  const message = utf8ToBytes(text);
+  const digest = keccak_256(concat([utf8ToBytes(`\x19Ethereum Signed Message:\n${message.length}`), message]));
+  const sig = secp256k1.sign(digest, privateKey, { prehash: false, format: 'recovered' });
+  return `0x${bytesToHex(sig.slice(1, 65))}${(27 + (sig[0] ?? 0)).toString(16)}`;
 }
 
 /** Parse a decimal amount like "0.015" into base units without floating point. Null if malformed. */

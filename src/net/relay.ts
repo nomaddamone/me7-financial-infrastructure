@@ -1,5 +1,6 @@
 import type { GaslessPricing, GaslessRequest, SignedAuthorization } from '../core/gasless.ts';
-import { CROSS, GASLESS, TRON_GASLESS } from './endpoints.ts';
+import { readEthGasTerms, type EthGasTerms } from '../core/ethgas.ts';
+import { CROSS, ETH_GASLESS, GASLESS, TRON_GASLESS } from './endpoints.ts';
 
 /** Why the relay did not take an operation; the codes are the relay's own (see server/relay-core.ts). */
 export class RelayError extends Error {
@@ -115,4 +116,35 @@ export async function relayTronSend(main: string, fee: string, cross?: string): 
   const answer = (await askTron('/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ main, fee, ...(cross ? { cross } : {}) }) })) as { ok?: unknown; hash?: unknown; error?: unknown } | null;
   if (answer?.ok === true && typeof answer.hash === 'string' && /^[0-9a-f]{64}$/.test(answer.hash)) return answer.hash;
   throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+}
+
+/**
+ * USDT and USDC on Ethereum without ETH (see src/core/ethgas.ts): the terms me7's service gives for a pair of
+ * transfers, read strictly, and the pair handed over. The pair is answered at once and carried to the network
+ * afterwards, so what comes back is the payment's hash, not yet its inclusion.
+ */
+export async function fetchEthGasTerms(from: string, token: string, to: string, amount: bigint): Promise<EthGasTerms> {
+  const query = new URLSearchParams({ from, token, to, amount: amount.toString() });
+  const answer = (await ask(`/eth/quote?${query}`)) as { ok?: unknown; error?: unknown } | null;
+  if (answer?.ok !== true) throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+  try {
+    return readEthGasTerms(answer, { service: ETH_GASLESS.service, maxFee: ETH_GASLESS.maxFee, receiver: GASLESS.receiver, maxGasPrice: ETH_GASLESS.maxGasPrice, maxGas: ETH_GASLESS.maxGas });
+  } catch {
+    throw new RelayError('down');
+  }
+}
+
+export async function relayEthSend(fee: string, main: string): Promise<string> {
+  const answer = (await ask('/eth/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fee, main }) })) as { ok?: unknown; hash?: unknown; error?: unknown } | null;
+  if (!(answer?.ok === true && typeof answer.hash === 'string' && /^0x[0-9a-f]{64}$/.test(answer.hash))) throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+  // The service offers the pair to the block builders, block after block, and gives up after a couple of minutes with
+  // nothing spent. So the wallet waits to hear which it was: the pair is in the chain, or it never went.
+  for (const until = Date.now() + ETH_GASLESS.waitMs; Date.now() < until; ) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    const said = (await ask(`/eth/status?hash=${answer.hash}`).catch(() => null)) as { state?: unknown } | null;
+    if (said?.state === 'done') return answer.hash;
+    if (said?.state === 'missed') throw new RelayError('missed');
+  }
+  // No word either way (the page slept, the service restarted): the hash is the thing to look up.
+  return answer.hash;
 }
