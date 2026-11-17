@@ -323,6 +323,8 @@ export const CROSS = {
    */
   baseFee: 500_000n,
   tronService: 1_000_000n,
+  /** A one-time address is shown in the wallet only when it holds this much of the coin or more: seven dollars, set by the owner on 2026-11-18. Less is not worth the fee of moving it. */
+  showFrom: 7_000_000n,
   /**
    * A swap between networks (see src/core/cross.ts). me7's own part, in hundredths of a percent of what is given;
    * nought until the owner decides on it: the service credits such a fee inside its own accounts, not on a chain.

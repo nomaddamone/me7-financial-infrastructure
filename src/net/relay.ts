@@ -123,8 +123,9 @@ export async function relayTronSend(main: string, fee: string, cross?: string): 
  * transfers, read strictly, and the pair handed over. The pair is answered at once and carried to the network
  * afterwards, so what comes back is the payment's hash, not yet its inclusion.
  */
-export async function fetchEthGasTerms(from: string, token: string, to: string, amount: bigint): Promise<EthGasTerms> {
-  const query = new URLSearchParams({ from, token, to, amount: amount.toString() });
+export async function fetchEthGasTerms(from: string, token: string, to: string, amount: bigint, ahead = false): Promise<EthGasTerms> {
+  // `ahead`: the terms are for an address the token has not reached yet, so they are an estimate from above.
+  const query = new URLSearchParams({ from, token, to, amount: amount.toString(), ...(ahead ? { ahead: '1' } : {}) });
   const answer = (await ask(`/eth/quote?${query}`)) as { ok?: unknown; error?: unknown } | null;
   if (answer?.ok !== true) throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
   try {

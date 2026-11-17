@@ -20,7 +20,7 @@ export {
   type KdfParams,
   type KeyfileErrorCode,
 } from './keyfile.ts';
-export { bitcoinPath, deriveKey, evmPath, type BitcoinNetwork, type DerivedKey } from './hd.ts';
+export { bitcoinPath, deriveKey, evmOneTimePath, evmPath, type BitcoinNetwork, type DerivedKey } from './hd.ts';
 export { evmAddressFromPrivateKey, isValidEvmAddress, toChecksumAddress } from './evm.ts';
 export { p2wpkhAddress } from './bitcoin.ts';
 export {

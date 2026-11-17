@@ -64,3 +64,8 @@ const SENT_AT: readonly number[] = [0, 500, 2600];
 export function SentFilm() {
   return <Film frames={FRAMES} at={SENT_AT} className="hold-film" />;
 }
+
+/** And without the tick: for a screen that says something is still on its way. The name gathers and stays. */
+export function WorkingFilm() {
+  return <Film frames={FRAMES.slice(0, 2)} at={SENT_AT.slice(0, 2)} className="hold-film" />;
+}

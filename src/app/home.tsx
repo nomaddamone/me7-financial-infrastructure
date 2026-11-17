@@ -61,7 +61,7 @@ import { loadRotation, rotationOwners, signWithAddresses, type Rotation } from '
 import { AddressCode, AddressLine, BrandQr, Scanner } from './payqr.tsx';
 import { Hold } from './hold.tsx';
 import { Naming } from './naming.tsx';
-import { canCross, CrossPay } from './crosspay.tsx';
+import { CrossPay, railFor, railOfCrossing, type Rail } from './crosspay.tsx';
 import { CrossList } from './crosslist.tsx';
 import { openCrossings, type Crossing } from './crossing.ts';
 import { HeldNote } from './held.tsx';
@@ -1144,9 +1144,10 @@ function Send({
     );
   }
 
-  const crossable = asset.contract === NET.tron.usdt && canCross(wallet);
-  if (cross && crossable) {
-    return <CrossPay t={t} wallet={wallet} initialTo={dest.trim()} initialAmount={all ? '' : amount} onPlain={(a, v) => (setTo(a), setAmount(v), setCross(false))} onClose={onClose} />;
+  const rail = railFor(wallet, asset);
+  const crossable = rail !== null;
+  if (cross && rail) {
+    return <CrossPay t={t} wallet={wallet} rail={rail} initialTo={dest.trim()} initialAmount={all ? '' : amount} onPlain={(a, v) => (setTo(a), setAmount(v), setCross(false))} onClose={onClose} />;
   }
   const isToken = asset.kind === 'erc20' || asset.kind === 'trc20';
   // Contacts saved for this coin: one tap puts the address in.
@@ -2029,7 +2030,7 @@ function AssetView({
           <HeldNote t={t} wallet={wallet} mark={quarantineOf(wallet, 'tron', wallet.tron) as Quarantined} amount={`${amountText(a, BigInt((quarantineOf(wallet, 'tron', wallet.tron) as Quarantined).amount))} ${a.ticker}`} />
         </section>
       )}
-      {a.contract === NET.tron.usdt && canCross(wallet) && <CrossList t={t} wallet={wallet} />}
+      {railFor(wallet, a) && <CrossList t={t} wallet={wallet} rail={railFor(wallet, a) as Rail} />}
 
       <section class="panel">
         <h2 class="label">{t.about}</h2>
@@ -2453,7 +2454,7 @@ function Pocket({
         {history?.partial && <p class="note">{t.historyPartial}</p>}
         {unfinished && (
           <p class="alert cross-banner">
-            {t.cross.banner.replace('{sum}', formatUnits(BigInt(unfinished.amount), 6, 2)).replace('{to}', shortAddress(unfinished.to))}{' '}
+            {t.cross.banner.replace('USDT', railOfCrossing(unfinished).coin).replace('{sum}', formatUnits(BigInt(unfinished.amount), 6, 2)).replace('{to}', shortAddress(unfinished.to))}{' '}
             <button class="linklike" onClick={() => setView('cross')}>
               {t.cross.resume}
             </button>

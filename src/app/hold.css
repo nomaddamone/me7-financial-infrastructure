@@ -51,3 +51,8 @@
   }
 }
 
+/* A warning on a screen with the film reads as a paragraph, not as a caption. */
+.hold .alert,
+.hold .note {
+  text-align: left;
+}

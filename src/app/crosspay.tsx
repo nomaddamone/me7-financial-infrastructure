@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { crossBudget, type CrossOrder } from '../core/cross.ts';
+import { crossAssetName, crossBudget, type CrossOrder } from '../core/cross.ts';
+import { isValidEvmAddress } from '../core/evm.ts';
 import { isValidTronAddress, parseUnits } from '../core/index.ts';
 import { addressCode } from '../core/payqr.ts';
 import { planFromPockets, pocketTotals, type Pocket } from '../core/rotation.ts';
 import { formatUnits } from '../net/balances.ts';
 import { fetchCrossQuote, fetchCrossState, tellCrossDeposit } from '../net/cross.ts';
-import { CROSS, NET } from '../net/endpoints.ts';
-import { fetchRelayPricing, fetchTronQuote } from '../net/relay.ts';
+import { CROSS, ETH_GASLESS, NET } from '../net/endpoints.ts';
+import { fetchEthGasTerms, fetchRelayPricing, fetchTronQuote } from '../net/relay.ts';
 import { fetchTrc20Frozen } from '../net/tron.ts';
 import { loadRotation } from './addresses.ts';
-import { crossingBalance, dropCrossing, freshTronAddress, payOnward, planOnward, saveCrossing, type Crossing, type OnwardPayment } from './crossing.ts';
-import { CrossBar, useCrossProgress, type BarPhase } from './crossbar.tsx';
+import { ASSETS, type AssetDef } from './assets.ts';
+import { crossingBalance, dropCrossing, freshEthAddress, freshTronAddress, payOnward, planOnward, saveCrossing, type Crossing, type OnwardPayment } from './crossing.ts';
+import { SentFilm, WorkingFilm } from './hold.tsx';
 import { Spinner } from './fx.tsx';
 import { Hold } from './hold.tsx';
 import { announcePlan, relayErrorText, sendPlan } from './home.tsx';
@@ -32,6 +34,44 @@ const FORGET_AFTER = 15 * 60_000;
 
 /** Whether this wallet, in this session, can pay USDT out of USDC at all. */
 export const canCross = (wallet: Wallet): boolean => NET.mode === 'mainnet' && !!NET.base && wallet.seed instanceof Uint8Array && wallet.seed.length === 64;
+
+/**
+ * Where the payment comes out: the coin and the network the recipient is paid on. USDT on Tron was the first; USDT
+ * and USDC on Ethereum go the same way, with an Ethereum address used once and me7's Ethereum service for the second half.
+ */
+export interface Rail {
+  net: 'tron' | 'eth';
+  coin: string;
+  netName: string;
+  /** The token's contract on Ethereum; empty on Tron. */
+  token: string;
+  /** The crossing service's name for the coin delivered. */
+  destination: string;
+  /** Whether me7's lower fees for this kind of payment apply (set by the owner for Tron only). */
+  discount: boolean;
+}
+const TRON_RAIL: Rail = { net: 'tron', coin: 'USDT', netName: 'Tron', token: '', destination: CROSS.destination, discount: true };
+const ethRail = (a: AssetDef): Rail => ({ net: 'eth', coin: a.ticker.toUpperCase(), netName: 'Ethereum', token: a.contract ?? '', destination: crossAssetName('eth', a.contract), discount: false });
+
+/** The way a coin can be paid out of USDC on Base, if there is one for it in this wallet and session. */
+export function railFor(wallet: Wallet, asset: AssetDef): Rail | null {
+  if (!canCross(wallet)) return null;
+  if (asset.contract === NET.tron.usdt) return TRON_RAIL;
+  if (asset.kind === 'erc20' && asset.chain !== 'base' && !!asset.contract && asset.contract.toLowerCase() in ETH_GASLESS.tokens) return ethRail(asset);
+  return null;
+}
+/** The way a payment under way was made. */
+export function railOfCrossing(c: Crossing): Rail {
+  const asset = c.net === 'eth' ? ASSETS.find((a) => a.chain !== 'base' && a.contract?.toLowerCase() === c.token?.toLowerCase()) : undefined;
+  return asset ? ethRail(asset) : TRON_RAIL;
+}
+
+/** The texts were written for USDT on Tron; for another coin and network the names in them are changed. */
+export function textsFor<T extends Record<string, unknown>>(texts: T, rail: Rail): T {
+  if (rail.net === 'tron') return texts;
+  const swap = (v: string) => v.replaceAll('Tron', rail.netName).replaceAll('tron', rail.netName.toLowerCase()).replaceAll('USDT', rail.coin).replaceAll('usdt', rail.coin.toLowerCase());
+  return Object.fromEntries(Object.entries(texts).map(([k, v]) => [k, typeof v === 'string' ? swap(v) : v])) as T;
+}
 
 interface Reviewed {
   to: string;
@@ -60,6 +100,7 @@ export function CrossPay({
   initialTo = '',
   initialAmount = '',
   resume,
+  rail: asked,
   onPlain,
   onClose,
 }: {
@@ -68,11 +109,15 @@ export function CrossPay({
   initialTo?: string;
   initialAmount?: string;
   resume?: Crossing;
+  /** Which coin and network the recipient is paid on; USDT on Tron unless said, or whatever the payment resumed was. */
+  rail?: Rail;
   /** Back to the ordinary transfer; absent when the screen was opened on an unfinished crossing. */
   onPlain?: (to: string, amount: string) => void;
   onClose: (sent: boolean) => void;
 }) {
-  const x = t.cross;
+  const rail = resume ? railOfCrossing(resume) : (asked ?? TRON_RAIL);
+  const x = textsFor(t.cross, rail);
+  const coin = rail.coin.toLowerCase();
   const [to, setTo] = useState(initialTo);
   const [amount, setAmount] = useState(initialAmount);
   const [step, setStep] = useState<'form' | 'preparing' | 'review' | 'holding' | 'sending' | 'working'>(resume ? 'working' : 'form');
@@ -88,8 +133,6 @@ export function CrossPay({
   const [onward, setOnward] = useState<OnwardPayment | null>(null);
   const [why, setWhy] = useState('');
   const busy = useRef(false);
-  const barPhase: BarPhase = phase === 'cross' ? 'cross' : phase === 'paying' ? 'paying' : phase === 'done' ? 'done' : 'halt';
-  const bar = useCrossProgress(step === 'working' ? barPhase : 'halt', crossing?.started ?? 0);
   // While the payment is under way the browser asks before the page is closed or reloaded: the second half needs this page.
   const underWay = step === 'working' && (phase === 'cross' || phase === 'paying');
   useEffect(() => {
@@ -120,7 +163,7 @@ export function CrossPay({
     setTotals(pocketTotals(rotation.spendable));
     // Stealth money first: its addresses are tied to nothing, which is the point of paying this way.
     // A payment into a crossing has me7's lower fee; the service checks for itself that it is one.
-    const planned = planFromPockets(rotation.spendable, [{ to: deposit, value: usdcIn }], { ...pricing, base: CROSS.baseFee }, rotation.fresh, { prefer: 'stealth', choice: pocket, mix });
+    const planned = planFromPockets(rotation.spendable, [{ to: deposit, value: usdcIn }], rail.discount ? { ...pricing, base: CROSS.baseFee } : pricing, rotation.fresh, { prefer: 'stealth', choice: pocket, mix });
     if (planned === 'needs-mix') throw new Error('needs-mix');
     if (planned === 'pocket-short') throw new Error(t.pockets.short.replace('{sum}', pocket === 'auto' ? '' : money((totals ?? { plain: 0n, stealth: 0n })[pocket])));
     if (planned === 'too-many') throw new Error(t.gasless.tooMany);
@@ -133,21 +176,22 @@ export function CrossPay({
     e.preventDefault();
     setError('');
     const recipient = to.trim();
-    if (!isValidTronAddress(recipient)) return setError(t.badAddress);
+    if (!(rail.net === 'tron' ? isValidTronAddress(recipient) : isValidEvmAddress(recipient))) return setError(t.badAddress);
     const units = parseUnits(amount, 6);
     if (units === null || units <= 0n) return setError(t.badAmount);
     if (units < CROSS.min) return setError(x.min.replace('{min}', money(CROSS.min)));
     const mixKey = `${recipient}|${amount.trim()}|${pocket}`;
     setStep('preparing');
     try {
-      const frozen = await fetchTrc20Frozen(NET.tron.nodes, NET.tron.usdt, recipient).catch(() => false);
+      // On Ethereum the service itself turns away a frozen recipient when the payment comes; on Tron the wallet asks first.
+      const frozen = rail.net === 'tron' && (await fetchTrc20Frozen(NET.tron.nodes, NET.tron.usdt, recipient).catch(() => false));
       if (frozen) throw new Error(t.guard.frozenTo);
-      const fresh = await freshTronAddress(wallet);
+      const fresh = rail.net === 'tron' ? await freshTronAddress(wallet) : await freshEthAddress(wallet, rail.token);
       // What paying on from the new address will cost is asked ahead of the money; the real price is asked again when it arrives.
-      const feeTron = (await fetchTronQuote(fresh.address, recipient, units, true, true)).fee;
+      const feeTron = rail.net === 'tron' ? (await fetchTronQuote(fresh.address, recipient, units, true, true)).fee : (await fetchEthGasTerms(fresh.address, rail.token, recipient, units, true)).fee;
       const budget = crossBudget(units, feeTron);
       const refundTo = (await loadRotation(wallet)).receive.address;
-      const order: CrossOrder = { origin: CROSS.origin, destination: CROSS.destination, recipient: fresh.address, refundTo, amountOut: budget, slippageBps: CROSS.slippageBps, deadline: Date.now() + CROSS.lifetime };
+      const order: CrossOrder = { origin: CROSS.origin, destination: rail.destination, recipient: fresh.address, refundTo, amountOut: budget, slippageBps: CROSS.slippageBps, deadline: Date.now() + CROSS.lifetime };
       const quote = await fetchCrossQuote(CROSS.api, order, true, CROSS);
       const usdc = await planUsdc(NOWHERE, quote.amountIn, mixOk === mixKey);
       setReviewed({ to: recipient, amount: units, fresh, order, usdcIn: quote.amountIn, feeBase: usdc.plan.fee, feeTron, from: usdc.from, joined: usdc.joined, seconds: quote.seconds });
@@ -200,6 +244,7 @@ export function CrossPay({
         deadline: order.deadline,
         stage: 'open',
         payTx: '',
+        ...(rail.net === 'eth' ? { net: 'eth' as const, token: rail.token } : {}),
       };
       // Written down before anything leaves: without the record a crossing cut short could not be finished.
       if (!saveCrossing(wallet, written)) {
@@ -208,7 +253,7 @@ export function CrossPay({
       }
       let hash: string;
       try {
-        hash = await sendPlan(wallet, usdc.plan, undefined, true);
+        hash = await sendPlan(wallet, usdc.plan, undefined, rail.discount);
       } catch (err) {
         throw new Error(relayErrorText(t, err));
       }
@@ -306,54 +351,22 @@ export function CrossPay({
   }
 
   if (step === 'working' && crossing) {
-    const sent = crossing.baseTx !== '';
     const got = arrived || phase === 'done' || phase === 'paying' || phase === 'short' || phase === 'payError';
     const final = phase === 'done' || phase === 'refunded' || phase === 'unsent';
-    const mark = (done: boolean, now: boolean) => cls('cross-step', done && 'cross-step--done', now && 'cross-step--now');
     return (
-      <section class="panel">
-        <h2 class="title">{phase === 'done' ? t.done : x.workingTitle}</h2>
-        <dl class="review">
-          <dt>{x.gets}</dt>
-          <dd class="review-total">
-            {money(BigInt(crossing.amount))} usdt <span class="dim">tron</span>
-          </dd>
-          <dt>{t.sendTo}</dt>
-          <dd class="review-addr">{crossing.to}</dd>
-          <dt>{x.via}</dt>
-          <dd class="review-addr">{crossing.address}</dd>
-        </dl>
-        <CrossBar phase={barPhase} p={bar.p} stops={['base', x.stop, 'tron']} />
-        <p class="cbar-meta">
-          {Math.round(bar.p * 100)}% · {String(Math.floor(bar.seconds / 60)).padStart(2, '0')}:{String(bar.seconds % 60).padStart(2, '0')}
+      <section class="panel hold">
+        {/* The film says where things stand: the name while the payment is on its way, the tick once the recipient has it. */}
+        {phase === 'done' ? <SentFilm key="done" /> : phase === 'cross' || phase === 'paying' ? <WorkingFilm key="working" /> : null}
+        <h2 class="title">{phase === 'done' ? x.sentTitle : x.workingTitle}</h2>
+        <p class="lead">
+          {phase === 'done' ? x.sentLead.replace('{sum}', money(BigInt(crossing.amount))).replace('{to}', `${crossing.to.slice(0, 8)}…${crossing.to.slice(-6)}`) : phase === 'paying' ? x.step3 : got ? x.step2done : x.step2}{' '}
+          {(phase === 'cross' || phase === 'paying') && <Spinner />}
         </p>
-        <ol class="cross-steps">
-          <li class={mark(sent, false)}>
-            {x.step1}
-            {sent && NET.base && (
-              <>
-                {' '}
-                <a href={NET.base.explorerTx(crossing.baseTx)} target="_blank" rel="noopener noreferrer">
-                  {t.viewTx}
-                </a>
-              </>
-            )}
-          </li>
-          <li class={mark(got, phase === 'cross')}>
-            {got ? x.step2done : x.step2} {phase === 'cross' && <Spinner />}
-          </li>
-          <li class={mark(phase === 'done', phase === 'paying')}>
-            {phase === 'done' ? x.step3done : x.step3} {phase === 'paying' && <Spinner />}
-            {phase === 'done' && crossing.payTx && (
-              <>
-                {' '}
-                <a href={NET.tron.explorerTx(crossing.payTx)} target="_blank" rel="noopener noreferrer">
-                  {t.viewTx}
-                </a>
-              </>
-            )}
-          </li>
-        </ol>
+        {phase === 'done' && crossing.payTx && (
+          <a class="btn" href={(rail.net === 'tron' ? NET.tron.explorerTx : NET.evm.explorerTx)(crossing.payTx)} target="_blank" rel="noopener noreferrer">
+            {t.viewTx}
+          </a>
+        )}
         {(phase === 'cross' || phase === 'paying') && (
           <p class="alert" role="note">
             <b>{x.stayTitle}</b> {x.stay}
@@ -411,7 +424,7 @@ export function CrossPay({
         <dl class="review">
           <dt>{x.gets}</dt>
           <dd class="review-total">
-            {money(reviewed.amount)} usdt <span class="dim">tron</span>
+            {money(reviewed.amount)} {coin} <span class="dim">{rail.netName.toLowerCase()}</span>
           </dd>
           <dt>{t.sendTo}</dt>
           <dd class="review-addr">{reviewed.to}</dd>
@@ -429,7 +442,7 @@ export function CrossPay({
           <dd>{money(over > 0n ? over : 0n)} usdc</dd>
           <dt>{x.feeTron}</dt>
           <dd>
-            {money(reviewed.order.amountOut - reviewed.amount)} usdt <span class="dim">{x.estimate}</span>
+            {money(reviewed.order.amountOut - reviewed.amount)} {coin} <span class="dim">{x.estimate}</span>
           </dd>
         </dl>
         <p class="alert">{x.trust}</p>
@@ -477,7 +490,7 @@ export function CrossPay({
       <p class="note">{x.lead}</p>
       <label class="field">
         <span class="field-label">
-          {t.sendTo} <span class="dim">(tron)</span>
+          {t.sendTo} <span class="dim">({rail.netName.toLowerCase()})</span>
         </span>
         <input class="input" type="text" autocapitalize="none" autocorrect="off" spellcheck={false} value={to} onInput={(e) => setTo(e.currentTarget.value)} />
       </label>

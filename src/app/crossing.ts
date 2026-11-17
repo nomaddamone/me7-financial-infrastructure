@@ -1,7 +1,9 @@
-import { deriveKey, tronAddressFromPrivateKey, tronPath, wipe } from '../core/index.ts';
+import { buildEthGasPair, type EthGasTerms } from '../core/ethgas.ts';
+import { deriveKey, evmAddressFromPrivateKey, evmOneTimePath, signEvmTransaction, tronAddressFromPrivateKey, tronPath, wipe } from '../core/index.ts';
 import { buildTrc20Transfer, signTronTransaction, tronRef } from '../core/tron.ts';
 import { NET, TRON_GASLESS } from '../net/endpoints.ts';
-import { fetchTronQuote, relayTronSend } from '../net/relay.ts';
+import { fetchEthGasTerms, fetchTronQuote, relayEthSend, relayTronSend } from '../net/relay.ts';
+import { evmRpc, fetchErc20Balance } from '../net/send.ts';
 import { fetchTrc20Balance, fetchTronAccount, fetchTronBlock } from '../net/tron.ts';
 import { withTronKey, type Wallet } from './wallet.ts';
 
@@ -36,13 +38,23 @@ export interface Crossing {
   stage: 'open' | 'paid' | 'refunded';
   /** The id of the Tron transaction that paid the recipient. */
   payTx: string;
+  /**
+   * Absent for a payment of USDT on Tron. 'eth' for one of a token on Ethereum: then `address` is an Ethereum address
+   * used once (its number counts along a branch of its own, see evmOneTimePath), and `token` is the token's contract.
+   */
+  net?: 'eth';
+  token?: string;
 }
 
 interface Store {
   /** The next Tron address number to try. */
   next: number;
+  /** The next number to try for an Ethereum address used once. */
+  nextEth?: number;
   list: Crossing[];
 }
+
+const onEth = (c: Crossing) => c.net === 'eth';
 
 const storeKey = (wallet: Wallet) => `me7.cross.${NET.mode}.${wallet.evm.toLowerCase()}`;
 const hasSeed = (wallet: Wallet) => wallet.seed instanceof Uint8Array && wallet.seed.length === 64;
@@ -54,9 +66,9 @@ function read(wallet: Wallet): Store {
     if (!raw || typeof raw.next !== 'number' || !Array.isArray(raw.list)) return { next: 1, list: [] };
     const list = raw.list.filter(
       (c): c is Crossing =>
-        !!c && isText(c.id) && Number.isSafeInteger(c.index) && c.index >= 1 && isText(c.address) && isText(c.to) && /^[0-9]+$/.test(c.amount) && /^[0-9]+$/.test(c.budget) && isText(c.deposit) && isText(c.baseTx) && isText(c.payTx) && (c.stage === 'open' || c.stage === 'paid' || c.stage === 'refunded'),
+        !!c && isText(c.id) && Number.isSafeInteger(c.index) && c.index >= (c.net === 'eth' ? 0 : 1) && (c.net === undefined || (c.net === 'eth' && isText(c.token))) && isText(c.address) && isText(c.to) && /^[0-9]+$/.test(c.amount) && /^[0-9]+$/.test(c.budget) && isText(c.deposit) && isText(c.baseTx) && isText(c.payTx) && (c.stage === 'open' || c.stage === 'paid' || c.stage === 'refunded'),
     );
-    return { next: Math.max(1, Math.floor(raw.next)), list };
+    return { next: Math.max(1, Math.floor(raw.next)), ...(typeof raw.nextEth === 'number' && raw.nextEth >= 0 ? { nextEth: Math.floor(raw.nextEth) } : {}), list };
   } catch {
     return { next: 1, list: [] };
   }
@@ -82,7 +94,8 @@ export function saveCrossing(wallet: Wallet, crossing: Crossing): boolean {
   const at = store.list.findIndex((c) => c.id === crossing.id);
   const list = at < 0 ? [...store.list, crossing] : store.list.map((c, i) => (i === at ? crossing : c));
   // The finished ones are kept, the last fifty of them: they are the only record of which address paid whom.
-  return write(wallet, { next: Math.max(store.next, crossing.index + 1), list: list.slice(-50) });
+  const next = onEth(crossing) ? { next: store.next, nextEth: Math.max(store.nextEth ?? 0, crossing.index + 1) } : { ...store, next: Math.max(store.next, crossing.index + 1) };
+  return write(wallet, { ...store, ...next, list: list.slice(-50) });
 }
 
 /** Forget a crossing of which nothing was ever sent. Its address number is not handed out again all the same. */
@@ -116,8 +129,33 @@ export async function freshTronAddress(wallet: Wallet): Promise<{ index: number;
   throw new Error('no unused address found');
 }
 
-/** How much USDT sits on a crossing's address right now. */
-export const crossingBalance = (crossing: Crossing): Promise<bigint> => fetchTrc20Balance(NET.tron.nodes, NET.tron.usdt, crossing.address);
+/** The wallet's Ethereum address number `index` on the branch of addresses used once. */
+export function ethOneTimeAt(wallet: Wallet, index: number): string {
+  const key = deriveKey(wallet.seed, evmOneTimePath(index));
+  try {
+    return evmAddressFromPrivateKey(key.privateKey);
+  } finally {
+    wipe(key.privateKey);
+  }
+}
+
+/**
+ * An Ethereum address of this wallet that nothing has ever touched, for one payment: no transaction of its own,
+ * no ETH, none of the token. Checked against the chain for the same reason as on Tron.
+ */
+export async function freshEthAddress(wallet: Wallet, token: string): Promise<{ index: number; address: string }> {
+  if (!hasSeed(wallet)) throw new Error('no seed in this session');
+  for (let index = read(wallet).nextEth ?? 0, tries = 0; tries < 30; index++, tries++) {
+    const address = ethOneTimeAt(wallet, index);
+    const [sent, coin, held] = await Promise.all([evmRpc(NET.evm.rpc, 'eth_getTransactionCount', [address, 'latest']), evmRpc(NET.evm.rpc, 'eth_getBalance', [address, 'latest']), fetchErc20Balance(NET.evm.rpc, token, address)]);
+    if (BigInt(sent as string) === 0n && BigInt(coin as string) === 0n && held === 0n) return { index, address };
+  }
+  throw new Error('no unused address found');
+}
+
+/** How much of the token paid sits on a crossing's address right now. */
+export const crossingBalance = (crossing: Crossing): Promise<bigint> =>
+  onEth(crossing) ? fetchErc20Balance(NET.evm.rpc, crossing.token ?? '', crossing.address) : fetchTrc20Balance(NET.tron.nodes, NET.tron.usdt, crossing.address);
 
 export interface OnwardPayment {
   /** What the recipient gets and what the service takes, in USDT's units. */
@@ -127,6 +165,8 @@ export interface OnwardPayment {
   /** How much the address holds, and how much short of the full payment it is (zero when it is enough). */
   held: bigint;
   short: bigint;
+  /** On Ethereum: the terms the two transfers are to be signed with. */
+  terms?: EthGasTerms;
 }
 
 /**
@@ -137,6 +177,13 @@ export interface OnwardPayment {
 export async function planOnward(crossing: Crossing): Promise<OnwardPayment> {
   const held = await crossingBalance(crossing);
   const want = BigInt(crossing.amount);
+  if (onEth(crossing)) {
+    // The real terms, now that the token is on the address: the gas is measured, not assumed.
+    const terms = await fetchEthGasTerms(crossing.address, crossing.token ?? '', crossing.to, want < held ? want : held);
+    const left = held - terms.fee;
+    const sum = left >= want ? want : left > 0n ? left : 0n;
+    return { amount: sum, fee: terms.fee, receiver: terms.receiver, held, short: want - sum, terms };
+  }
   // The lower fee belongs to the payment a crossing was made for; money taken back from an address later pays the ordinary one.
   const quote = await fetchTronQuote(crossing.address, crossing.to, want < held ? want : held, false, crossing.deposit !== '');
   const can = held - quote.fee;
@@ -147,6 +194,21 @@ export async function planOnward(crossing: Crossing): Promise<OnwardPayment> {
 /** Pay a crossing on: the payment and its fee are signed with the one-time address's key and handed to me7's service. Returns the payment's transaction id. */
 export async function payOnward(wallet: Wallet, crossing: Crossing, pay: OnwardPayment): Promise<string> {
   if (pay.amount <= 0n || pay.amount + pay.fee > pay.held) throw new Error('not enough on the address');
+  if (onEth(crossing)) {
+    if (!pay.terms) throw new Error('no terms');
+    // The fee first and the payment second, signed with the one-time address's key; me7's service lends the gas and sends them as one.
+    const pair = buildEthGasPair(NET.evm.chainId, crossing.token ?? '', crossing.to, pay.amount, { ...pay.terms, fee: pay.fee });
+    const key = deriveKey(wallet.seed, evmOneTimePath(crossing.index));
+    let signed: { fee: string; main: string };
+    try {
+      if (evmAddressFromPrivateKey(key.privateKey).toLowerCase() !== crossing.address.toLowerCase()) throw new Error('not the key of this address');
+      signed = { fee: signEvmTransaction(pair.fee, key.privateKey).raw, main: signEvmTransaction(pair.main, key.privateKey).raw };
+    } finally {
+      // The key is gone before the wait for the network begins.
+      wipe(key.privateKey);
+    }
+    return relayEthSend(signed.fee, signed.main);
+  }
   const block = await fetchTronBlock(NET.tron.nodes);
   const ref = { ...tronRef(block, Date.now()), expiration: block.timestamp + TRON_GASLESS.lifetime };
   const main = buildTrc20Transfer(crossing.address, NET.tron.usdt, crossing.to, pay.amount, ref, TRON_GASLESS.feeLimit);
@@ -168,6 +230,9 @@ export interface OneTime {
   address: string;
   held: bigint;
   crossing: Crossing | null;
+  /** Absent for a Tron address. For an Ethereum one: 'eth', and the token `held` is counted in. */
+  net?: 'eth';
+  token?: string;
 }
 
 /** How many untouched addresses in a row end the search. Numbers are handed out one after another, so gaps are small. */
@@ -188,7 +253,7 @@ export function oneTimeAddresses(wallet: Wallet, fresh = false): Promise<OneTime
   if (hit && !fresh && Date.now() - hit.at < 60_000) return hit.run;
   const run = (async () => {
     const store = read(wallet);
-    const noted = new Map(store.list.map((c) => [c.index, c]));
+    const noted = new Map(store.list.filter((c) => !onEth(c)).map((c) => [c.index, c]));
     const last = Math.max(0, ...noted.keys());
     const list: OneTime[] = [];
     // One at a time: the public nodes turn away a burst of questions.
@@ -215,5 +280,40 @@ export function oneTimeAddresses(wallet: Wallet, fresh = false): Promise<OneTime
  * signed transfers as any payment from it, at the service's ordinary fee.
  */
 export function takeBack(wallet: Wallet, one: OneTime): Crossing {
+  if (one.net === 'eth') {
+    return { id: `back-eth-${one.index}`, index: one.index, address: one.address, to: wallet.evm, amount: one.held.toString(), budget: one.held.toString(), deposit: '', usdcIn: '0', baseTx: '', started: Date.now(), deadline: Date.now(), stage: 'open', payTx: '', net: 'eth', token: one.token ?? '' };
+  }
   return { id: `back-${one.index}`, index: one.index, address: one.address, to: wallet.tron, amount: one.held.toString(), budget: one.held.toString(), deposit: '', usdcIn: '0', baseTx: '', started: Date.now(), deadline: Date.now(), stage: 'open', payTx: '' };
+}
+
+/**
+ * The same for the wallet's one-time Ethereum addresses and one token: every address on their branch that was ever
+ * used, newest first, with what it holds of the token. Found from the seed and the chain, as on Tron.
+ */
+export function oneTimeEthAddresses(wallet: Wallet, token: string, fresh = false): Promise<OneTime[]> {
+  if (!hasSeed(wallet)) return Promise.resolve([]);
+  const key = `${storeKey(wallet)}:eth:${token.toLowerCase()}`;
+  const hit = found.get(key);
+  if (hit && !fresh && Date.now() - hit.at < 60_000) return hit.run;
+  const run = (async () => {
+    const store = read(wallet);
+    const noted = new Map(store.list.filter(onEth).map((c) => [c.index, c]));
+    const last = Math.max(-1, ...noted.keys());
+    const list: OneTime[] = [];
+    for (let index = 0, untouched = 0; index < MOST && (index <= last || untouched < GAP); index++) {
+      const address = ethOneTimeAt(wallet, index);
+      const crossing = noted.get(index) ?? null;
+      const held = await fetchErc20Balance(NET.evm.rpc, token, address);
+      const used = crossing !== null || held > 0n || BigInt((await evmRpc(NET.evm.rpc, 'eth_getTransactionCount', [address, 'latest'])) as string) > 0n;
+      untouched = used ? 0 : untouched + 1;
+      // An address made for another token is not this token's business unless it holds some of it.
+      if (used && (held > 0n || crossing === null || crossing.token?.toLowerCase() === token.toLowerCase())) list.push({ index, address, held, crossing, net: 'eth', token });
+    }
+    const top = Math.max(-1, ...list.map((o) => o.index));
+    if (top >= (store.nextEth ?? 0)) write(wallet, { ...read(wallet), nextEth: top + 1 });
+    return list.reverse();
+  })();
+  found.set(key, { at: Date.now(), run });
+  run.catch(() => found.delete(key));
+  return run;
 }

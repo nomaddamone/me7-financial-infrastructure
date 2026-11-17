@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import { formatUnits } from '../net/balances.ts';
 import { CROSS } from '../net/endpoints.ts';
-import { oneTimeAddresses, payOnward, planOnward, takeBack, type OneTime, type OnwardPayment } from './crossing.ts';
+import { oneTimeAddresses, oneTimeEthAddresses, payOnward, planOnward, takeBack, type OneTime, type OnwardPayment } from './crossing.ts';
+import { textsFor, type Rail } from './crosspay.tsx';
 import { Spinner } from './fx.tsx';
 import { CopyButton, relayErrorText } from './home.tsx';
 import type { Dict } from './i18n.ts';
@@ -14,12 +15,12 @@ const money = (units: bigint) => {
 const short = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
 
 /**
- * The wallet's one-time Tron addresses, on the page of USDT on Tron: the addresses payments made
- * out of USDC left from, what is still on each, and a way to take a remainder worth taking back
- * to the main address. Nothing is shown to a wallet that has never paid this way.
+ * The wallet's one-time addresses, on the page of the coin they were used for (USDT on Tron, USDT
+ * or USDC on Ethereum): only those that still hold enough to be worth taking back, and the way
+ * to take it back to the main address. Cents left over after a payment are not shown at all.
  */
-export function CrossList({ t, wallet }: { t: Dict; wallet: Wallet }) {
-  const x = t.cross;
+export function CrossList({ t, wallet, rail }: { t: Dict; wallet: Wallet; rail: Rail }) {
+  const x = textsFor(t.cross, rail);
   const [list, setList] = useState<OneTime[] | null>(null);
   const [down, setDown] = useState(false);
   // Taking a remainder back: which address, what it would come to, and the password that lets money move.
@@ -28,21 +29,19 @@ export function CrossList({ t, wallet }: { t: Dict; wallet: Wallet }) {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
   const [showAll, setShowAll] = useState(false);
-  const [showEmpty, setShowEmpty] = useState(false);
 
   const load = (fresh = false) =>
-    oneTimeAddresses(wallet, fresh).then(
-      (found) => (setList(found), setDown(false)),
+    (rail.net === 'eth' ? oneTimeEthAddresses(wallet, rail.token, fresh) : oneTimeAddresses(wallet, fresh)).then(
+      // Only what is worth moving: the rest is nobody's business.
+      (found) => (setList(found.filter((one) => one.held >= CROSS.showFrom)), setDown(false)),
       () => setDown(true),
     );
   useEffect(() => void load(), []);
 
   if (down && !list) return null;
-  // Cents left over after a payment cost more to move than they are worth, so they are nobody's business: the list
-  // is shown only when some address holds enough to be worth taking back (a payment cut short, or money sent there later).
-  if (!list || !list.some((one) => one.held >= CROSS.min)) return null;
-  // The address with the most on it, if that is worth the fee of taking it back.
-  const worth = list.reduce<OneTime | null>((best, one) => (one.held >= CROSS.min && (!best || one.held > best.held) ? one : best), null);
+  if (!list || list.length === 0) return null;
+  // The address with the most on it is taken back first.
+  const worth = list.reduce<OneTime | null>((best, one) => (!best || one.held > best.held ? one : best), null);
 
   const open = async (one: OneTime) => {
     setSaid('');
@@ -74,9 +73,7 @@ export function CrossList({ t, wallet }: { t: Dict; wallet: Wallet }) {
     }
   };
 
-  // As with the addresses of USDC on Base: the list is opened on request, and addresses with nothing left stay out of it unless asked for.
-  const empty = list.filter((one) => one.held === 0n);
-  const shown = list.filter((one) => one.held > 0n || showEmpty);
+  const shown = list;
   return (
     <section class="panel">
       <button type="button" class="linklike" onClick={() => setShowAll((v) => !v)}>
@@ -99,11 +96,6 @@ export function CrossList({ t, wallet }: { t: Dict; wallet: Wallet }) {
               </li>
             ))}
           </ul>
-          {empty.length > 0 && (
-            <button type="button" class="linklike" onClick={() => setShowEmpty((v) => !v)}>
-              {(showEmpty ? t.gasless.hideEmpty : t.gasless.showEmpty).replace('{n}', String(empty.length))}
-            </button>
-          )}
           <p class="note">{x.listLead}</p>
           {worth && !taking && (
             <button class="btn" onClick={() => void open(worth)}>

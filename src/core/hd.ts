@@ -36,6 +36,15 @@ export function evmPath(addressIndex = 0): string {
   return `m/44'/60'/0'/0/${index(addressIndex, 'addressIndex')}`;
 }
 
+/**
+ * The path of an Ethereum address used once (see src/app/crossing.ts): m/44'/60'/1'/0/index.
+ * A branch of its own, so that such an address is never one of the wallet's other addresses:
+ * those on the first branch are the same on Ethereum and on Base, and one used here would tie the two.
+ */
+export function evmOneTimePath(addressIndex = 0): string {
+  return `m/44'/60'/1'/0/${index(addressIndex, 'addressIndex')}`;
+}
+
 export type BitcoinNetwork = 'mainnet' | 'testnet';
 
 /** BIP84 path (native SegWit): m/84'/coin'/account'/change/index. */
