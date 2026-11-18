@@ -149,3 +149,32 @@ export async function relayEthSend(fee: string, main: string): Promise<string> {
   // No word either way (the page slept, the service restarted): the hash is the thing to look up.
   return answer.hash;
 }
+
+/**
+ * A risk report on an address (see AML in endpoints.ts): the question goes to me7's service with the payment for it,
+ * or with the ticket of a payment already made. What comes back is the screening service's own answer.
+ * A refusal carries the ticket when the payment went through and the report did not come.
+ */
+export class AmlError extends RelayError {
+  readonly ticket: string;
+  constructor(code: string, ticket = '', address = '') {
+    super(code, address);
+    this.ticket = ticket;
+  }
+}
+export async function relayAml(chain: string, address: string, paid: { payment: GaslessRequest } | { ticket: string }): Promise<{ report: unknown; hash: string }> {
+  const body = JSON.stringify({ chain, address, ...paid }, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value));
+  const controller = new AbortController();
+  // Longer than other requests: the payment must get into a block before the report is bought.
+  const timer = setTimeout(() => controller.abort(), 90_000);
+  let answer: { ok?: unknown; report?: unknown; hash?: unknown; error?: unknown; ticket?: unknown; address?: unknown } | null;
+  try {
+    answer = (await (await fetch(`${GASLESS.path}/aml`, { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: controller.signal })).json()) as typeof answer;
+  } catch {
+    throw new AmlError('down');
+  } finally {
+    clearTimeout(timer);
+  }
+  if (answer?.ok === true && typeof answer.hash === 'string') return { report: answer.report, hash: answer.hash };
+  throw new AmlError(typeof answer?.error === 'string' ? answer.error : 'down', typeof answer?.ticket === 'string' ? answer.ticket : '', typeof answer?.address === 'string' ? answer.address : '');
+}

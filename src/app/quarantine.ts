@@ -32,6 +32,8 @@ interface Store {
   marks: Quarantined[];
   /** What me7's service said: kept as it is, whatever the wallet's own look finds. */
   told?: Quarantined[];
+  /** Tron senders found not frozen, and when (Unix ms): they are not asked about again for a day. */
+  clear?: Record<string, number>;
 }
 
 const storeKey = (wallet: Wallet) => `me7.quarantine.${NET.mode}.${wallet.evm.toLowerCase()}`;
@@ -46,6 +48,7 @@ function read(wallet: Wallet): Store {
     const isMark = (m: Quarantined) => !!m && (m.chain === 'base' || m.chain === 'tron') && isText(m.address) && TAINTS.includes(m.why) && isText(m.from) && isText(m.amount) && /^[0-9]+$/.test(m.amount) && isText(m.tx);
     return {
       told: Array.isArray(raw.told) ? raw.told.filter(isMark) : [],
+      clear: raw.clear && typeof raw.clear === 'object' ? Object.fromEntries(Object.entries(raw.clear).filter(([, at]) => typeof at === 'number' && at > Date.now() - CLEAR_MS)) : {},
       blocks: raw.blocks.filter((b) => Number.isSafeInteger(b)),
       incoming: raw.incoming.filter((p) => !!p && isText(p.to) && isText(p.from) && isText(p.amount) && /^[0-9]+$/.test(p.amount) && Number.isSafeInteger(p.block) && isText(p.tx)),
       marks: raw.marks.filter(isMark),
@@ -106,13 +109,16 @@ async function baseMarks(wallet: Wallet, now: number, store: Store): Promise<{ b
 
 /** USDT on the wallet's main Tron address: the issuer's own freeze list is asked about each sender worth asking about. */
 const TRON_MOST_SENDERS = 20;
-async function tronMarks(wallet: Wallet, now: number): Promise<Quarantined[]> {
+const CLEAR_MS = 86_400_000;
+async function tronMarks(wallet: Wallet, now: number, clear: Record<string, number>): Promise<Quarantined[]> {
   const arrivals = await usdtTronArrivals(wallet, now);
   const all: Incoming[] = arrivals.map((c) => ({ to: wallet.tron, from: c.peer ?? '', amount: c.delta, ...(c.tx ? { tx: c.tx } : {}) }));
   const flagged = new Map<string, Taint>();
   // One at a time: the public nodes turn away a burst.
-  for (const sender of sendersToScreen(all, QUARANTINE_MIN).slice(0, TRON_MOST_SENDERS)) {
+  // A sender found not frozen is not asked about again for a day: each question is a request to a free node.
+  for (const sender of sendersToScreen(all, QUARANTINE_MIN).filter((s) => !clear[s]).slice(0, TRON_MOST_SENDERS)) {
     if (await fetchTrc20Frozen(NET.tron.nodes, NET.tron.usdt, sender)) flagged.set(sender, 'frozen');
+    else clear[sender] = Date.now();
   }
   return quarantineMarks(all, flagged).map((m) => stored('tron', m));
 }
@@ -130,10 +136,11 @@ export function syncQuarantine(wallet: Wallet, now: number = Math.floor(Date.now
   if (hit && Date.now() - hit.at < EVERY_MS) return hit.run;
   const run = (async () => {
     const before = read(wallet);
-    const [base, tron] = await Promise.allSettled([baseMarks(wallet, now, before), tronMarks(wallet, now)]);
+    const clear = { ...(before.clear ?? {}) };
+    const [base, tron] = await Promise.allSettled([baseMarks(wallet, now, before), tronMarks(wallet, now, clear)]);
     const kept = (chain: Chain) => before.marks.filter((m) => m.chain === chain);
     const marks = [...(base.status === 'fulfilled' ? base.value.marks : kept('base')), ...(tron.status === 'fulfilled' ? tron.value : kept('tron'))];
-    write(wallet, { ...(before.told ? { told: before.told } : {}), blocks: base.status === 'fulfilled' ? base.value.blocks : before.blocks, incoming: base.status === 'fulfilled' ? base.value.incoming : before.incoming, marks });
+    write(wallet, { ...(before.told ? { told: before.told } : {}), clear, blocks: base.status === 'fulfilled' ? base.value.blocks : before.blocks, incoming: base.status === 'fulfilled' ? base.value.incoming : before.incoming, marks });
     // The wallet stops paying from an address the moment it is marked, and starts again the moment the mark is gone.
     const was = before.marks.map((m) => `${m.chain}:${m.address}`).sort().join();
     if (marks.map((m) => `${m.chain}:${m.address}`).sort().join() !== was) forgetRotation(wallet);

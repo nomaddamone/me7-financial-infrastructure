@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchBitcoinBalance, fetchEvmBalance, formatUnits } from '../src/net/balances.ts';
-import { AllEndpointsFailed, withFallback } from '../src/net/fallback.ts';
+import { AllEndpointsFailed, forgetFailures, withFallback } from '../src/net/fallback.ts';
 
 const ADDR = '0x9858EfFD232B4033E47d90003D41EC34EcaEda94';
 const BTC = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  forgetFailures();
+});
 
 describe('withFallback', () => {
   it('returns the first endpoint that answers', async () => {
@@ -33,6 +36,26 @@ describe('withFallback', () => {
       20,
     );
     expect(r.endpoint).toBe('fast');
+  });
+
+  it('asks an endpoint that has just failed after the others, and first again once it has answered', async () => {
+    const asked: string[] = [];
+    const call = (down: string[]) => async (e: string) => {
+      asked.push(e);
+      if (down.includes(e)) throw new Error('429');
+      return e;
+    };
+    expect((await withFallback(['a', 'b', 'c'], call(['a']))).endpoint).toBe('b');
+    // 'a' said no a moment ago: it is not asked first, and not asked at all while another answers.
+    asked.length = 0;
+    expect((await withFallback(['a', 'b', 'c'], call([]))).endpoint).toBe('b');
+    expect(asked).toEqual(['b']);
+    // When the others fail too, it is asked again; having answered, it is first once more.
+    asked.length = 0;
+    expect((await withFallback(['a', 'b', 'c'], call(['b', 'c']))).endpoint).toBe('a');
+    expect(asked).toEqual(['b', 'c', 'a']);
+    asked.length = 0;
+    expect((await withFallback(['a', 'b', 'c'], call([]))).endpoint).toBe('a');
   });
 
   it('reports every failure when nothing answers', async () => {

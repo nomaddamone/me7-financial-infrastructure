@@ -64,6 +64,7 @@ import { Naming } from './naming.tsx';
 import { CrossPay, railFor, railOfCrossing, type Rail } from './crosspay.tsx';
 import { CrossList } from './crosslist.tsx';
 import { openCrossings, type Crossing } from './crossing.ts';
+import { AmlCheck } from './aml.tsx';
 import { HeldNote } from './held.tsx';
 import { markTold, quarantined, quarantineOf, syncQuarantine, type Quarantined } from './quarantine.ts';
 import { useOwnName } from './ownname.ts';
@@ -81,7 +82,7 @@ import { loadHistory, paidAddresses, portfolioSeries, rememberPaid, type History
 import { lookalikeOf } from '../core/lookalike.ts';
 import { STEALTH_INDEX } from './stealth.ts';
 import { parseStealthCode, stealthAddressFor, stealthCode, stealthKeys, stealthMetaAddress, tokenMetadata } from '../core/stealth.ts';
-import { GASLESS_MAX_NOTES, type StealthNote } from '../core/gasless.ts';
+import { GASLESS_MAX_NOTES, type GaslessRequest, type StealthNote } from '../core/gasless.ts';
 import { closeWallet, isSessionPassword, openWallet, withBitcoinKey, withEvmKey, withTronKey, type Wallet } from './wallet.ts';
 import './home.css';
 
@@ -149,11 +150,11 @@ export function Qr({ text }: { text: string }) {
   return <BrandQr text={text} />;
 }
 
-/** Sign a plan's permissions with the keys of the addresses involved and hand them to the relay. Returns the transaction hash. */
 /** The addresses a plan pays from are named to me7's service ahead of the payment (see relayLook). */
 export const announcePlan = (plan: PaymentPlan): void => relayLook([...new Set([...plan.sources.map((s) => s.holding.address), ...(plan.via ? [plan.via.address] : [])])]);
 
-export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[], cross = false): Promise<string> {
+/** Sign a plan's permissions, each with the key of the address it takes from: the request me7's relay carries. Nothing is sent. */
+export function signPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[], cross = false): GaslessRequest {
   const base = NET.base;
   if (!base) throw new Error('no Base network');
   const unsigned = planAuthorizations(plan, {
@@ -165,9 +166,15 @@ export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: Stealt
   });
   const [fee, ...transfers] = signWithAddresses(wallet, { ...GASLESS.domain, chainId: base.chainId, contract: base.usdc }, [unsigned.fee, ...unsigned.transfers]);
   if (!fee) throw new Error('nothing to sign');
+  return { chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}), ...(cross ? { cross: true } : {}) };
+}
+
+/** Sign a plan's permissions and hand them to the relay. Returns the transaction hash. */
+export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[], cross = false): Promise<string> {
+  const request = signPlan(wallet, plan, notes, cross);
   let hash: string;
   try {
-    hash = await relaySend({ chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}), ...(cross ? { cross: true } : {}) });
+    hash = await relaySend(request);
   } catch (err) {
     // The service found one of the addresses in quarantine: the wallet marks it, and the next payment goes round it.
     if (err instanceof RelayError && err.code === 'held' && err.address) markTold(wallet, 'base', err.address);
@@ -699,12 +706,15 @@ function Send({
   prices,
   initial,
   onClose,
+  onAml,
 }: {
   t: Dict;
   wallet: Wallet;
   prices: UsdPrices | null;
   initial?: AssetDef;
   onClose: (sent: boolean) => void;
+  /** Leave for the address check with the recipient's address in hand. */
+  onAml?: (address: string) => void;
 }) {
   const [asset, setAsset] = useState<AssetDef | undefined>(initial ?? ASSETS[0]);
   const [to, setTo] = useState('');
@@ -1230,6 +1240,11 @@ function Send({
             <AddressCode t={t} address={destParsed.address} />
             <span class="dim">{t.pay.codeAsk}</span>
           </span>
+        )}
+        {destParsed && onAml && (
+          <button type="button" class="linklike" onClick={() => onAml(destParsed.address)}>
+            {t.aml.checkThis}
+          </button>
         )}
         {twin && (
           <span class="alert" role="alert">
@@ -2148,7 +2163,11 @@ function Pocket({
   /** The vault was created just now, so being empty is expected. */
   fresh?: boolean;
 }) {
-  const [view, setView] = useState<'main' | 'send' | 'receive' | 'swap' | 'contacts' | 'multi' | 'cross'>('main');
+  const [view, setView] = useState<'main' | 'send' | 'receive' | 'swap' | 'contacts' | 'multi' | 'cross' | 'aml'>('main');
+  // The address check is paid for from USDC on Base through me7's service, so it needs both, and the main wallet.
+  const canAml = !vault && NET.mode === 'mainnet' && !!NET.base && wallet.seed instanceof Uint8Array && wallet.seed.length === 64;
+  // The address the check opens with, when it is opened from the send screen.
+  const [amlAddress, setAmlAddress] = useState('');
   // The asset opened from the list; send and receive started from its page come back to it.
   const [selected, setSelected] = useState<AssetDef | null>(null);
   // The payment opened from the feed or from an asset's page; closing it returns to where it was opened.
@@ -2260,6 +2279,20 @@ function Pocket({
       />
     );
   }
+  if (view === 'aml') {
+    return (
+      <AmlCheck
+        t={t}
+        wallet={wallet}
+        initial={amlAddress}
+        onClose={() => {
+          setAmlAddress('');
+          setView('main');
+          void refresh();
+        }}
+      />
+    );
+  }
   if (view === 'swap') {
     return (
       <Swap
@@ -2299,6 +2332,7 @@ function Pocket({
           setView('main');
           if (sent) void refresh();
         }}
+        {...(canAml ? { onAml: (address: string) => (setAmlAddress(address), setView('aml')) } : {})}
       />
     );
   }
@@ -2628,6 +2662,12 @@ function Pocket({
             {vault ? t.vaultLock : t.exit}
           </button>
         </div>
+        {/* The way into the address check: under the buttons, where it is found by those who look for it and is in nobody's way. */}
+        {canAml && (
+          <button type="button" class="linklike aml-link" onClick={() => setView('aml')}>
+            {t.aml.open}
+          </button>
+        )}
         <p class="note">{vault ? t.vaultSessionNote : t.sessionNote}</p>
       </footer>
     </>
@@ -2822,7 +2862,9 @@ export function Home({ t, wallet, onExit }: { t: Dict; wallet: Wallet; onExit: (
   useEffect(() => {
     void syncContacts(wallet);
     // Who paid to the wallet's addresses is looked at in the background; a listed sender puts that one address in quarantine.
-    void syncQuarantine(wallet).catch(() => undefined);
+    // Not at once: the balances and the history come first, and the same free nodes serve both.
+    const later = setTimeout(() => void syncQuarantine(wallet).catch(() => undefined), 25_000);
+    return () => clearTimeout(later);
   }, [wallet]);
   // Tapping the tab that is already open takes its screen back to the first page.
   const [home, setHome] = useState(0);

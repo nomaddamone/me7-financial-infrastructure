@@ -760,3 +760,22 @@
   font-size: 11px;
   opacity: 0.6;
 }
+
+/* The screening service's whole answer, for those who want to read it. */
+.aml-raw {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font: 11px/1.5 var(--mono);
+  color: var(--dim);
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The way into the address check, under the buttons at the foot of the main screen. */
+.aml-link {
+  justify-self: start;
+}

@@ -4,7 +4,7 @@ import { NET } from '../net/endpoints.ts';
 import {
   balanceSeries,
   fetchBitcoinChanges,
-  fetchErc20Changes,
+  fetchErc20ChangesAll,
   fetchEvmCoinChanges,
   fetchChangesFromNodes,
   fetchPriceHistory,
@@ -31,12 +31,29 @@ export interface History extends PriceHistory {
   partial: boolean;
 }
 
+/**
+ * The tokens on Ethereum are read in one pass for all of them (see fetchErc20ChangesAll), and the answer is shared
+ * by every token's curve for a minute. A longer period than the one already read is read anew.
+ */
+const ETH_TOKENS = ASSETS.flatMap((a) => (a.kind === 'erc20' && a.chain !== 'base' && a.contract ? [a.contract] : []));
+const ethTokenCache = new Map<string, { at: number; since: number; all: Promise<Record<string, Change[]>> }>();
+function ethTokenChanges(a: AssetDef, wallet: Wallet, since: number): Promise<Change[]> {
+  let hit = ethTokenCache.get(wallet.evm);
+  if (!hit || hit.since > since || Date.now() - hit.at > 60_000) {
+    const all = fetchErc20ChangesAll(NET.evm.history, wallet.evm, ETH_TOKENS, since);
+    hit = { at: Date.now(), since, all };
+    ethTokenCache.set(wallet.evm, hit);
+    all.catch(() => ethTokenCache.delete(wallet.evm));
+  }
+  return hit.all.then((byToken) => (byToken[(a.contract ?? '').toLowerCase()] ?? []).filter((c) => c.time >= since));
+}
+
 function changesOf(a: AssetDef, wallet: Wallet, since: number): Promise<Change[]> {
   switch (a.kind) {
     case 'eth':
       return fetchEvmCoinChanges(NET.evm.history, wallet.evm, since);
     case 'erc20':
-      return fetchErc20Changes(NET.evm.history, wallet.evm, a.contract ?? '', since);
+      return ethTokenChanges(a, wallet, since);
     case 'btc':
       return fetchBitcoinChanges(NET.btc.esplora, wallet.btc, since);
     case 'trx':

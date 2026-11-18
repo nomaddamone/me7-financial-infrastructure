@@ -107,10 +107,10 @@ interface BlockscoutPage {
   items?: unknown;
   next_page_params?: Record<string, unknown> | null;
 }
-async function blockscoutPages(base: string, path: string, since: number, visit: (item: Record<string, unknown>) => number): Promise<void> {
-  await one(base, async (b, signal) => {
+async function blockscoutPages(base: string, path: string, since: number, visit: (item: Record<string, unknown>) => number, pages = MAX_PAGES, timeoutMs = 12000): Promise<void> {
+  await withFallback([base], async (b, signal) => {
     let query = '';
-    for (let page = 0; page < MAX_PAGES; page++) {
+    for (let page = 0; page < pages; page++) {
       const body = (await getJson(`${b}${path}${query ? (path.includes('?') ? '&' : '?') + query : ''}`, signal)) as BlockscoutPage | null;
       if (!body || !Array.isArray(body.items)) throw new Error('Malformed response');
       let oldest = Infinity;
@@ -118,7 +118,7 @@ async function blockscoutPages(base: string, path: string, since: number, visit:
       if (!body.next_page_params || oldest < since) break;
       query = new URLSearchParams(Object.entries(body.next_page_params).map(([k, v]) => [k, String(v)])).toString();
     }
-  });
+  }, timeoutMs);
 }
 
 /**
@@ -166,6 +166,40 @@ export async function fetchErc20Changes(base: string, address: string, token: st
     if (delta !== 0n) out.push({ time, delta, ...(typeof tx === 'string' && tx ? { tx } : {}), ...(peer ? { peer } : {}) });
     return time;
   });
+  return out;
+}
+
+/**
+ * The transfers of several ERC-20 tokens in and out of the address, read in one pass, by token contract (lower case).
+ *
+ * Blockscout answers a question about one token slowly when the address has few transfers of it (half a minute
+ * was measured), and a wallet shows half a dozen tokens. Asked for all the address's token transfers at once it
+ * answers in a couple of seconds; the ones of other tokens (there are many worthless ones sent to everybody) are
+ * dropped here. An address with very many of those is read only as far back as the pages allow.
+ */
+export async function fetchErc20ChangesAll(base: string, address: string, tokens: readonly string[], since: number): Promise<Record<string, Change[]>> {
+  const out: Record<string, Change[]> = Object.fromEntries(tokens.map((t) => [t.toLowerCase(), [] as Change[]]));
+  const me = address.toLowerCase();
+  await blockscoutPages(
+    base,
+    `/api/v2/addresses/${address}/token-transfers?type=ERC-20`,
+    since,
+    (item) => {
+      const time = seconds(item.timestamp);
+      const list = out[String((item.token as { address_hash?: unknown; address?: unknown } | undefined)?.address_hash ?? (item.token as { address?: unknown } | undefined)?.address ?? '').toLowerCase()];
+      if (!list) return time;
+      const amount = integer((item.total as { value?: unknown } | undefined)?.value);
+      const from = String((item.from as { hash?: unknown } | undefined)?.hash ?? '').toLowerCase();
+      const to = String((item.to as { hash?: unknown } | undefined)?.hash ?? '').toLowerCase();
+      const delta = (to === me ? amount : 0n) - (from === me ? amount : 0n);
+      const tx = item.transaction_hash ?? item.tx_hash;
+      const peer = delta > 0n ? from : to;
+      if (delta !== 0n) list.push({ time, delta, ...(typeof tx === 'string' && tx ? { tx } : {}), ...(peer ? { peer } : {}) });
+      return time;
+    },
+    10,
+    40000,
+  );
   return out;
 }
 

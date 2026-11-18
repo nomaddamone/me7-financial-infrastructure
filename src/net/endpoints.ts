@@ -265,6 +265,22 @@ export const TRON_GASLESS = {
 } as const;
 
 /**
+ * A risk report on an address ("AML check"), bought from BlockSec through its pay-per-request door: no account and
+ * no key, each report paid for in USDC on Base (see src/core/x402.ts). The wallet pays me7 the report's price and
+ * the relay's usual fee; me7's service buys the report and passes it on, so BlockSec sees me7 and the address asked
+ * about, and not who asked. Only the service talks to BlockSec.
+ */
+export const AML = {
+  api: 'https://x402.blocksec.ai',
+  /** The price of one report, in USDC's units: 0.20, as BlockSec quoted it on 2026-11-18. The service pays no more than this. */
+  price: 200_000n,
+  /** me7's service address on Base, which the price is paid to and the report is bought from. */
+  payTo: '0x2191AAdA5B32A6A76a0D945B4C16b62ef34Ec5F8',
+  /** The networks an address can be asked about, by BlockSec's names (its own list, read 2026-11-18). */
+  chains: ['ethereum', 'base', 'tron', 'bitcoin', 'bnb', 'polygon', 'arbitrum', 'optimism', 'avalanche'],
+} as const;
+
+/**
  * USDT and USDC on Ethereum without ETH: the pocket signs two ordinary transfers, the fee and the payment, and
  * me7's service, under /relay/eth, puts the ETH they will burn on the pocket's address and sends them (see
  * src/core/ethgas.ts). Main network only.
