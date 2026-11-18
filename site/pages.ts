@@ -83,10 +83,13 @@ export const HUB: Page = {
           'Nothing to install and nothing to register. Open the site, create a key, and the wallet is ready in a minute.',
           'You never need ETH to move USDC on Base. me7 pays the network gas; you pay one plain fee, about 1 USDC per operation, shown before you confirm.',
           'The same goes for USDT on Tron: no TRX needed. me7 pays the network, and the fee is taken in USDT, shown before you confirm.',
+          'USDT and USDC on Ethereum go without ETH as well: me7 lends the gas, and its fee is taken in the coin you send.',
+          'A coin can be swapped for a coin on another network in one step, with no gas to buy on either side.',
           'Your key is a file and a password, not twelve words on a slip of paper. The file can hide inside your own photo, PDF or song.',
           'A payer sees their own transfer, not your whole balance: the wallet hands out a new address after every payment received.',
           'Stealth mode: one code that never changes, and every payer who uses it from me7 pays to a new address only you can find.',
-          'USDT on Tron can be paid out of your USDC on Base, from a new Tron address used once: the recipient does not see your own address.',
+          'USDT on Tron, and USDT or USDC on Ethereum, can be paid out of your USDC on Base, from a new address used once: the recipient does not see your own address.',
+          'Money that reaches you from a sanctioned or frozen address quarantines only the address it came to, and any address can be checked with an AML report on request.',
           'Under pressure you can open a second, empty vault with a different password.',
           'A transfer is hard to send to the wrong place: an eight-digit address code to compare with the recipient, ten seconds to cancel after you confirm, and a receipt once it is sent. The wallet also warns about a look-alike of an address you know and about a USDT address that has been frozen.',
           'You can pay to a name such as anna.base.eth instead of forty characters, and take a name for your own address.',
@@ -97,7 +100,7 @@ export const HUB: Page = {
         h: 'Networks and coins',
         p: [
           'Base: USDC, ETH, cbBTC. Ethereum: ETH, USDT, USDC, DAI, LINK, WBTC, cbBTC. Tron: TRX and USDT. Bitcoin.',
-          'USDC on Base is the main coin of the wallet: it moves without ETH and with rotating addresses. USDT on Tron moves without TRX.',
+          'USDC on Base is the main coin of the wallet: it moves without ETH and with rotating addresses. USDT on Tron moves without TRX, and USDT and USDC on Ethereum without ETH.',
         ],
       },
       {
@@ -140,10 +143,13 @@ export const HUB: Page = {
           'Ничего не нужно устанавливать и нигде регистрироваться. Открыли сайт, создали ключ, и через минуту кошелёк готов.',
           'Чтобы перевести USDC в сети Base, не нужен ETH. Газ сети оплачивает me7, а вы платите одну понятную комиссию, около 1 USDC за операцию, и видите её до подтверждения.',
           'То же с USDT в сети Tron: TRX не нужны. Сеть оплачивает me7, а комиссия берётся в USDT, и её видно до подтверждения.',
+          'USDT и USDC в сети Ethereum тоже уходят без ETH: газ даёт me7, а комиссия берётся в той монете, которую вы отправляете.',
+          'Монету можно обменять на монету в другой сети за один шаг, не покупая газ ни с одной стороны.',
           'Ключ — это файл и пароль, а не двенадцать слов на бумажке. Файл можно спрятать в своей фотографии, PDF или песне.',
           'Плательщик видит только свой перевод, а не весь ваш баланс: после каждого поступления кошелёк выдаёт новый адрес.',
           'Stealth mode: один постоянный код, и каждый, кто платит по нему из me7, платит на новый адрес, который можете найти только вы.',
-          'USDT в сети Tron можно заплатить из своих USDC в Base, с нового адреса Tron, которым кошелёк пользуется один раз: ваш собственный адрес получатель не увидит.',
+          'USDT в сети Tron, USDT и USDC в сети Ethereum можно заплатить из своих USDC в Base, с нового адреса, которым кошелёк пользуется один раз: ваш собственный адрес получатель не увидит.',
+          'Деньги, пришедшие с санкционного или замороженного адреса, ставят на карантин только тот адрес, куда они пришли, а любой адрес можно проверить отчётом AML по запросу.',
           'Под давлением можно открыть второй, пустой сейф другим паролем.',
           'Перевод трудно отправить не туда: восьмизначный код адреса для сверки с получателем, десять секунд на отмену после подтверждения и отчёт после отправки. Кошелёк также предупредит о подделке под знакомый адрес и о замороженном адресе USDT.',
           'Платить можно на имя вроде anna.base.eth вместо сорока символов, а для своего адреса взять собственное имя.',
@@ -154,7 +160,7 @@ export const HUB: Page = {
         h: 'Сети и монеты',
         p: [
           'Base: USDC, ETH, cbBTC. Ethereum: ETH, USDT, USDC, DAI, LINK, WBTC, cbBTC. Tron: TRX и USDT. Bitcoin.',
-          'USDC в сети Base — главная монета кошелька: она ходит без ETH и со сменой адресов. USDT в сети Tron ходит без TRX.',
+          'USDC в сети Base — главная монета кошелька: она ходит без ETH и со сменой адресов. USDT в сети Tron ходит без TRX, а USDT и USDC в сети Ethereum без ETH.',
         ],
       },
       {
@@ -1133,6 +1139,382 @@ export const PAGES: Page[] = [
     },
   },
   {
+    id: 'ethless',
+    en: {
+      slug: "usdt-ethereum-without-eth",
+      title: "Send USDT and USDC on Ethereum without ETH — me7",
+      description: "Send USDT or USDC on Ethereum from an address that holds no ETH. me7 lends the gas and takes one fee in the same coin. Your key signs; me7 cannot change the transfer.",
+      h1: "USDT and USDC on Ethereum, with no ETH on the address",
+      lead: "A token on Ethereum moves only in a transaction of its owner, and a transaction is paid for in ETH. If your address has none, me7 lends exactly the gas the transfer burns and takes its fee in the coin you send.",
+      card: "USDT and USDC on Ethereum go without ETH: me7 lends the gas.",
+      sections: [
+        {
+          h: "How it works",
+          p: [
+            "You sign two ordinary transfers with your own key: the fee to me7 and the payment to the recipient. me7 cannot change either of them; it can only deliver them or not.",
+            "me7 puts on your address exactly the ETH the two will burn and hands all three transactions to the block builders as one bundle. They go into a block together or not at all.",
+          ],
+        },
+        {
+          h: "How to use it",
+          steps: [
+            "Open send and choose USDT or USDC on Ethereum.",
+            "Enter the address and the amount. If the address has too little ETH for the gas, the wallet switches to me7’s service by itself.",
+            "Check the fee on the review screen and confirm with your password.",
+            "Wait for the wallet to say how it ended: usually 5 to 25 seconds, two minutes at most.",
+          ],
+        },
+        {
+          h: "What it costs",
+          list: [
+            "me7’s part: 1.3 dollars, taken in the coin you send.",
+            "The gas me7 lends, with a tenth added for the price of ETH moving. In a quiet network that is a few cents.",
+            "The whole fee is shown before you confirm. The smallest payment is 5 dollars.",
+          ],
+        },
+        {
+          h: "What to keep in mind",
+          list: [
+            "If the bundle does not get into a block within two minutes, nothing is sent and nothing is charged: the wallet says so and you can send again.",
+            "A little unspent ETH stays on your address: the gas is lent with room to spare, and the network takes what it actually used.",
+            "When gas on Ethereum is very dear, the service asks to wait.",
+            "With a Ledger it is not available.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Do I need any ETH at all?", a: "No. If the address has none, me7 lends what the transfer burns. If it has enough, the wallet sends the ordinary way and you pay the network yourself." },
+        { q: "Can me7 redirect my transfer?", a: "No. Each of the two transfers is signed whole by your key: the recipient and the amount cannot be changed. me7 can only send them to the network or decline to." },
+        { q: "Which coins does it work for?", a: "USDT and USDC on Ethereum. Other tokens on Ethereum still need ETH on the address." },
+      ],
+    },
+    ru: {
+      slug: "usdt-ethereum-bez-eth",
+      title: "Отправка USDT и USDC в Ethereum без ETH — me7",
+      description: "Отправляйте USDT и USDC в сети Ethereum с адреса, на котором нет ETH. me7 даёт газ и берёт одну комиссию в той же монете. Подписывает ваш ключ: изменить перевод me7 не может.",
+      h1: "USDT и USDC в Ethereum, когда на адресе нет ETH",
+      lead: "Токен в Ethereum двигается только транзакцией своего владельца, а транзакция оплачивается в ETH. Если на вашем адресе его нет, me7 даёт ровно столько газа, сколько сожжёт перевод, и берёт комиссию в той монете, которую вы отправляете.",
+      card: "USDT и USDC в Ethereum уходят без ETH: газ даёт me7.",
+      sections: [
+        {
+          h: "Как это работает",
+          p: [
+            "Вы подписываете своим ключом два обычных перевода: комиссию me7 и платёж получателю. Изменить их me7 не может: он может только доставить их в сеть или не доставить.",
+            "me7 кладёт на ваш адрес ровно столько ETH, сколько сожгут оба перевода, и отдаёт все три транзакции сборщикам блоков одним пакетом. Они попадают в блок вместе или не попадают совсем.",
+          ],
+        },
+        {
+          h: "Как пользоваться",
+          steps: [
+            "Откройте «отправить» и выберите USDT или USDC в сети Ethereum.",
+            "Введите адрес и сумму. Если на адресе не хватает ETH на газ, кошелёк сам переключится на сервис me7.",
+            "Проверьте комиссию на экране подтверждения и подтвердите паролем.",
+            "Дождитесь, пока кошелёк скажет, чем всё кончилось: обычно 5–25 секунд, самое большее две минуты.",
+          ],
+        },
+        {
+          h: "Сколько это стоит",
+          list: [
+            "Часть me7: 1,3 доллара, в той монете, которую вы отправляете.",
+            "Газ, который даёт me7, с надбавкой в десятую часть на случай, если цена ETH сдвинется. В спокойной сети это несколько центов.",
+            "Вся комиссия видна до подтверждения. Наименьший платёж: 5 долларов.",
+          ],
+        },
+        {
+          h: "Что нужно знать",
+          list: [
+            "Если пакет не попал в блок за две минуты, ничего не отправлено и ничего не списано: кошелёк скажет об этом, и перевод можно повторить.",
+            "На адресе остаётся немного неизрасходованного ETH: газ даётся с запасом, а сеть берёт по факту.",
+            "Когда газ в Ethereum очень дорог, сервис просит подождать.",
+            "С Ledger этот способ недоступен.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Нужен ли вообще ETH?", a: "Нет. Если на адресе его нет, me7 даёт столько, сколько сожжёт перевод. Если ETH хватает, кошелёк отправляет обычным путём, и сеть вы оплачиваете сами." },
+        { q: "Может ли me7 перенаправить мой перевод?", a: "Нет. Каждый из двух переводов целиком подписан вашим ключом: получателя и сумму изменить нельзя. me7 может только отправить их в сеть или отказаться." },
+        { q: "Для каких монет это работает?", a: "Для USDT и USDC в сети Ethereum. Остальным токенам в Ethereum по-прежнему нужен ETH на адресе." },
+      ],
+    },
+  },
+  {
+    id: 'bridge',
+    en: {
+      slug: "swap-between-networks",
+      title: "Swap coins between networks without buying gas — me7",
+      description: "Swap USDC on Base, or USDT and USDC on Ethereum, for a coin on another network: Tron, Bitcoin, Ethereum or Base. me7 pays the gas; the result arrives on your own address.",
+      h1: "A swap from one network to another, in one step",
+      lead: "Moving value from one network to another usually means an exchange, or a bridge and gas on both sides. In me7 it is one screen: choose what you give and what you get, and the result arrives on your own address on the other network.",
+      card: "Swap a coin for a coin on another network; me7 pays the gas.",
+      sections: [
+        {
+          h: "How it works",
+          p: [
+            "You choose two coins on the swap screen. If they are on different networks, the wallet sends what you give to a crossing service, and the service delivers what it buys to your own address on the other network.",
+            "USDC on Base, and USDT and USDC on Ethereum, leave through me7’s own service: it pays the gas and takes its fee in the coin you give. Other coins leave your main address by an ordinary transfer, and you pay the gas yourself.",
+          ],
+        },
+        {
+          h: "What can be swapped",
+          list: [
+            "You give: USDC on Base; ETH, USDT, USDC, DAI, LINK, WBTC or cbBTC on Ethereum; ETH or cbBTC on Base.",
+            "You get: any coin of the wallet on another network, including USDT and TRX on Tron and bitcoin.",
+            "Giving from Tron or from Bitcoin is not available yet.",
+          ],
+        },
+        {
+          h: "What it costs",
+          list: [
+            "The crossing service’s own price, which is in the amount you are shown: a fraction of a percent on stablecoins.",
+            "me7’s fee when its service carries the deposit: about 1 USDC from Base; 1.3 dollars and the gas from Ethereum. It is shown as a line of its own before you confirm.",
+            "When you pay the gas yourself, me7 takes nothing.",
+          ],
+        },
+        {
+          h: "What to keep in mind",
+          list: [
+            "Between the networks the money goes through a third party, NEAR Intents. While the swap runs, the money is in that service’s hands. If it cannot make the swap, it returns the money to your address; me7’s fee is not returned.",
+            "The wallet works out for itself the least a swap may give, from prices it gets elsewhere, and refuses a rate worse than that.",
+            "USDC on Base is taken from one pocket at a time. If the amount is there only in the stealth pocket and the ordinary one together, the wallet asks before it joins them: that ties their addresses on the blockchain.",
+            "Most swaps arrive within a minute. Bitcoin takes about a quarter of an hour.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Where does the result arrive?", a: "On your own address on the other network, in this same wallet. The crossing service is told that address and no other." },
+        { q: "Do I need gas on the network I swap to?", a: "No. The crossing service delivers the coin there by itself." },
+        { q: "Who holds the money during the swap?", a: "The crossing service, NEAR Intents, for the minute the swap takes. me7 does not hold it at any point." },
+      ],
+    },
+    ru: {
+      slug: "obmen-mezhdu-setyami",
+      title: "Обмен монет между сетями без покупки газа — me7",
+      description: "Меняйте USDC в Base, USDT и USDC в Ethereum на монету в другой сети: Tron, Bitcoin, Ethereum или Base. Газ платит me7, результат приходит на ваш же адрес.",
+      h1: "Обмен из одной сети в другую за один шаг",
+      lead: "Перенести деньги из одной сети в другую обычно значит идти на биржу или через мост и держать газ с обеих сторон. В me7 это один экран: выбираете, что отдаёте и что получаете, и результат приходит на ваш же адрес в другой сети.",
+      card: "Обмен монеты на монету в другой сети; газ платит me7.",
+      sections: [
+        {
+          h: "Как это работает",
+          p: [
+            "На экране обмена вы выбираете две монеты. Если они в разных сетях, кошелёк отправляет то, что вы отдаёте, сервису перехода, а тот доставляет купленное на ваш же адрес в другой сети.",
+            "USDC из Base, USDT и USDC из Ethereum уходят через собственный сервис me7: он платит газ и берёт комиссию в той монете, которую вы отдаёте. Остальные монеты уходят с основного адреса обычным переводом, и газ вы платите сами.",
+          ],
+        },
+        {
+          h: "Что можно менять",
+          list: [
+            "Отдаёте: USDC в Base; ETH, USDT, USDC, DAI, LINK, WBTC или cbBTC в Ethereum; ETH или cbBTC в Base.",
+            "Получаете: любую монету кошелька в другой сети, в том числе USDT и TRX в Tron и биткоин.",
+            "Отдавать из Tron и из Bitcoin пока нельзя.",
+          ],
+        },
+        {
+          h: "Сколько это стоит",
+          list: [
+            "Цена самого сервиса перехода: она уже в сумме, которую вам показывают, и на стейблкоинах это доли процента.",
+            "Комиссия me7, когда депозит несёт его сервис: около 1 USDC из Base; 1,3 доллара и газ из Ethereum. Она стоит отдельной строкой до подтверждения.",
+            "Когда газ вы платите сами, me7 не берёт ничего.",
+          ],
+        },
+        {
+          h: "Что нужно знать",
+          list: [
+            "Между сетями деньги идут через сторонний сервис NEAR Intents. Пока идёт обмен, деньги у этого сервиса. Если он не сможет обменять, он вернёт деньги на ваш адрес; комиссия me7 при этом не возвращается.",
+            "Кошелёк сам считает по сторонним ценам, сколько обмен обязан дать самое меньшее, и не принимает курс хуже.",
+            "USDC в Base берётся из одного кармана за раз. Если сумма набирается только из stealth-кармана и обычного вместе, кошелёк спросит, прежде чем их объединить: это свяжет их адреса в блокчейне.",
+            "Большинство обменов приходит в течение минуты. Биткоин идёт около четверти часа.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Куда приходит результат?", a: "На ваш же адрес в другой сети, в этом же кошельке. Сервису перехода называется именно он и никакой другой." },
+        { q: "Нужен ли газ в сети, в которую я меняю?", a: "Нет. Сервис перехода сам доставляет туда монету." },
+        { q: "У кого деньги во время обмена?", a: "У сервиса перехода NEAR Intents, ту минуту, что идёт обмен. me7 не держит их ни в какой момент." },
+      ],
+    },
+  },
+  {
+    id: 'quarantine',
+    en: {
+      slug: "address-quarantine",
+      title: "Quarantine of one address: money from a listed sender — me7",
+      description: "If money reaches you from a sanctioned, frozen or known scam address, me7 puts only that one address of yours in quarantine. The rest of the wallet works as usual.",
+      h1: "One bad payment does not spoil the whole wallet",
+      lead: "Nobody can stop money from arriving: an address is public, and anyone may pay to it. What me7 does is look at who paid. If the sender is on a list, only the address of yours that was paid goes into quarantine.",
+      card: "Money from a listed sender quarantines one address, not the wallet.",
+      sections: [
+        {
+          h: "How it works",
+          p: [
+            "The wallet looks at the payments that arrived on your addresses and asks the lists about each sender: the sanctions list, and the lists of addresses frozen by the coin’s issuer (Circle for USDC, Tether for USDT). me7’s service makes the same check on its own side, with a public list of scam addresses as well.",
+            "An address that was paid a dollar or more by a listed sender is marked in red. me7’s service no longer carries transfers from it, so the wallet pays round it. Your other addresses and pockets are untouched.",
+          ],
+        },
+        {
+          h: "What you can do with a quarantined address",
+          list: [
+            "The money is still yours. You move it out by an ordinary transfer, paying the network yourself.",
+            "For USDC on Base the wallet has a button for it: it says how much ETH the address needs, waits for it, and sends the whole balance where you say.",
+            "For USDT on Tron it is the ordinary transfer paid in TRX.",
+            "It cannot be moved to another address of the same wallet: that would only carry the cause along, unseen.",
+          ],
+        },
+        {
+          h: "What it does not do",
+          list: [
+            "It sees the direct sender only. Money that passed through someone else on its way is not seen.",
+            "It knows the public lists and the issuers’ freezes, not what a paid analytics firm thinks of an address.",
+            "It looks a year back.",
+            "So an address without a mark is not “clean”: it is an address with no direct payment from a listed sender. For a fuller opinion there is the AML check on request.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Can someone switch my address off by sending it a cent?", a: "No. Less than a dollar from a listed sender is not counted." },
+        { q: "Does me7 freeze my money?", a: "No. me7 has no key to your wallet. It declines to pay the gas for that one address; you can still send from it yourself." },
+        { q: "Which coins are covered?", a: "USDC on Base, on all of the wallet’s addresses, and USDT on Tron. On Ethereum the service checks the address when it lends the gas." },
+      ],
+    },
+    ru: {
+      slug: "karantin-adresa",
+      title: "Карантин одного адреса: деньги от отправителя из списков — me7",
+      description: "Если вам пришли деньги с санкционного, замороженного или мошеннического адреса, me7 ставит на карантин только тот ваш адрес, куда они пришли. Остальной кошелёк работает как обычно.",
+      h1: "Один плохой платёж не портит весь кошелёк",
+      lead: "Запретить деньгам приходить нельзя: адрес виден всем, и прислать на него может кто угодно. me7 смотрит, кто прислал. Если отправитель в списках, на карантин уходит только тот ваш адрес, на который пришли эти деньги.",
+      card: "Деньги от отправителя из списков закрывают один адрес, а не кошелёк.",
+      sections: [
+        {
+          h: "Как это работает",
+          p: [
+            "Кошелёк смотрит на платежи, пришедшие на ваши адреса, и спрашивает списки о каждом отправителе: санкционный список и списки адресов, замороженных выпустившей монету компанией (Circle для USDC, Tether для USDT). Сервис me7 делает ту же проверку на своей стороне и сверяется ещё с открытым списком мошеннических адресов.",
+            "Адрес, на который отправитель из списков прислал доллар или больше, помечается красным. Сервис me7 больше не проводит с него переводы, и кошелёк платит в обход него. Остальные ваши адреса и карманы это не затрагивает.",
+          ],
+        },
+        {
+          h: "Что можно сделать с адресом на карантине",
+          list: [
+            "Деньги остаются вашими. Вывести их можно обычным переводом, оплатив сеть самостоятельно.",
+            "Для USDC в Base в кошельке есть кнопка: она говорит, сколько ETH нужно на адресе, дожидается его и отправляет весь остаток туда, куда вы укажете.",
+            "Для USDT в Tron это обычный перевод с оплатой в TRX.",
+            "На другой адрес этого же кошелька вывести нельзя: причина карантина просто переехала бы вместе с деньгами, уже незаметно.",
+          ],
+        },
+        {
+          h: "Чего это не делает",
+          list: [
+            "Видно только прямого отправителя. Деньги, которые по дороге прошли через кого-то ещё, не видны.",
+            "Известны открытые списки и заморозки от выпустивших монету компаний, но не мнение платной аналитической фирмы об адресе.",
+            "Проверка смотрит на год назад.",
+            "Поэтому адрес без пометки не значит «чистый»: это адрес, на который не было прямого платежа от отправителя из списков. Для более полной оценки есть проверка AML по запросу.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Можно ли отключить мой адрес, прислав на него цент?", a: "Нет. Меньше доллара от отправителя из списков не считается." },
+        { q: "me7 замораживает мои деньги?", a: "Нет. У me7 нет ключа от вашего кошелька. Он отказывается платить газ за этот один адрес; отправить с него самостоятельно вы по-прежнему можете." },
+        { q: "Какие монеты это касается?", a: "USDC в Base на всех адресах кошелька и USDT в Tron. В Ethereum адрес проверяет сервис, когда даёт газ." },
+      ],
+    },
+  },
+  {
+    id: 'aml',
+    en: {
+      slug: "aml-check",
+      title: "AML check of any crypto address, no account — me7",
+      description: "Check any address for ties to sanctions, hacks and fraud right from the wallet. No sign-up; one report costs 0.20 USDC and me7’s fee. The screening service does not see who asked.",
+      h1: "A risk report on any address, when you want one",
+      lead: "Before you accept a payment or send one, you may want to know what an address is tied to. me7 buys a report from a screening service for you: you type the address, pay in USDC, and read the answer a moment later.",
+      card: "A risk report on any address, bought from the wallet without an account.",
+      sections: [
+        {
+          h: "How it works",
+          p: [
+            "The report comes from a third party, BlockSec. You pay me7 in USDC on Base, without gas; me7’s service buys the report with what you have just paid and passes the answer on.",
+            "BlockSec sees me7 and the address asked about. It does not see who asked. It does keep the address it was asked about.",
+          ],
+        },
+        {
+          h: "How to use it",
+          steps: [
+            "Open “check an address (AML)” at the foot of the main screen, or “check this address” under the recipient field when sending.",
+            "Paste the address. For addresses of the Ethereum kind, choose the network.",
+            "Check the price and confirm with your password.",
+            "Read the report: the risk score, what the service marked, and its whole answer if you want it.",
+          ],
+        },
+        {
+          h: "What it costs",
+          list: [
+            "The report: 0.20 USDC.",
+            "me7’s fee for carrying the payment: about 1 USDC.",
+            "Both are shown before you confirm. If the payment went through and the report did not come, you can ask again without paying for a day.",
+          ],
+        },
+        {
+          h: "What to keep in mind",
+          list: [
+            "It is one service’s rating, not a guarantee. An exchange may use another service and see the address differently.",
+            "Networks: Ethereum, Base, Tron, Bitcoin, BNB Chain, Polygon, Arbitrum, Optimism, Avalanche.",
+            "It needs USDC on Base in the wallet.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Do I need an account with the screening service?", a: "No. There is no account and no key: each report is paid for by itself." },
+        { q: "Can I check an address that is not mine?", a: "Yes, any address: an exchange’s, a counterparty’s, your own." },
+        { q: "Is this the same as the quarantine?", a: "No. The quarantine is automatic and free, and looks only at direct payments from listed senders. The AML check is a paid report from an analytics service, on request." },
+      ],
+    },
+    ru: {
+      slug: "aml-proverka",
+      title: "AML-проверка любого криптоадреса без аккаунта — me7",
+      description: "Проверьте любой адрес на связь с санкциями, взломами и мошенничеством прямо из кошелька. Без регистрации; отчёт стоит 0,20 USDC и комиссию me7.",
+      h1: "Отчёт о риске по любому адресу, когда он нужен",
+      lead: "Перед тем как принять платёж или отправить его, бывает нужно понять, с чем связан адрес. me7 покупает для вас отчёт у проверяющего сервиса: вы вставляете адрес, платите в USDC и через минуту читаете ответ.",
+      card: "Отчёт о риске по любому адресу, прямо из кошелька и без аккаунта.",
+      sections: [
+        {
+          h: "Как это работает",
+          p: [
+            "Отчёт даёт сторонний сервис BlockSec. Вы платите me7 в USDC в сети Base, без газа; сервис me7 покупает отчёт на то, что вы только что заплатили, и передаёт вам ответ.",
+            "BlockSec видит me7 и адрес, о котором спросили. Кто спрашивал, он не видит. Сам адрес, о котором спросили, он запоминает.",
+          ],
+        },
+        {
+          h: "Как пользоваться",
+          steps: [
+            "Откройте «проверить адрес (AML)» внизу главного экрана или «проверить этот адрес» под полем получателя при отправке.",
+            "Вставьте адрес. Для адресов вида Ethereum выберите сеть.",
+            "Проверьте цену и подтвердите паролем.",
+            "Прочитайте отчёт: оценку риска, что отметил сервис, и его ответ целиком, если он вам нужен.",
+          ],
+        },
+        {
+          h: "Сколько это стоит",
+          list: [
+            "Отчёт: 0,20 USDC.",
+            "Комиссия me7 за проведение платежа: около 1 USDC.",
+            "Обе суммы видны до подтверждения. Если оплата прошла, а отчёт не пришёл, запрос можно повторить без оплаты в течение суток.",
+          ],
+        },
+        {
+          h: "Что нужно знать",
+          list: [
+            "Это оценка одного сервиса, а не гарантия. Биржа может пользоваться другим сервисом и видеть адрес иначе.",
+            "Сети: Ethereum, Base, Tron, Bitcoin, BNB Chain, Polygon, Arbitrum, Optimism, Avalanche.",
+            "В кошельке нужны USDC в сети Base.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Нужен ли аккаунт у проверяющего сервиса?", a: "Нет. Ни аккаунта, ни ключа: каждый отчёт оплачивается сам по себе." },
+        { q: "Можно ли проверить чужой адрес?", a: "Да, любой: адрес биржи, адрес того, с кем вы имеете дело, свой собственный." },
+        { q: "Это то же самое, что карантин?", a: "Нет. Карантин работает сам и бесплатно и смотрит только на прямые платежи от отправителей из списков. AML-проверка — это платный отчёт аналитического сервиса, по запросу." },
+      ],
+    },
+  },
+  {
     id: 'cross',
     en: {
       slug: 'private-usdt-tron',
@@ -1155,7 +1537,13 @@ export const PAGES: Page[] = [
             'Open send, choose USDT on Tron and switch to “stealth via USDC”.',
             'Enter the recipient’s address and the amount in USDT.',
             'Check the screen: what the recipient gets, what leaves your USDC, and each of the three fees.',
-            'Confirm with your password. Keep the page open for a minute or two, until the route on the screen reaches Tron.',
+            'Confirm with your password. Keep the page open for a minute or two, until the screen says the transfer is delivered.',
+          ],
+        },
+        {
+          h: 'USDT and USDC on Ethereum too',
+          p: [
+            'The same payment works for USDT and USDC on Ethereum: choose the coin on Ethereum, switch to “stealth via USDC”, and the money crosses from your USDC on Base to a new Ethereum address used once. me7 lends the gas for the payment from it, so no ETH is needed. The fees there are the ordinary ones: about 1 USDC on Base, the crossing, and 1.3 dollars and the gas on Ethereum.',
           ],
         },
         {
@@ -1205,7 +1593,13 @@ export const PAGES: Page[] = [
             'Откройте «отправить», выберите USDT в сети Tron и переключитесь на «stealth через USDC».',
             'Введите адрес получателя и сумму в USDT.',
             'Проверьте экран: сколько получит получатель, сколько спишется USDC и каждую из трёх комиссий.',
-            'Подтвердите паролем. Не закрывайте страницу одну-две минуты, пока маршрут на экране не дойдёт до Tron.',
+            'Подтвердите паролем. Не закрывайте страницу одну-две минуты, пока экран не скажет, что перевод доставлен.',
+          ],
+        },
+        {
+          h: 'Так же для USDT и USDC в Ethereum',
+          p: [
+            'Тот же платёж работает для USDT и USDC в сети Ethereum: выберите монету в Ethereum, переключитесь на «stealth через USDC», и деньги перейдут из ваших USDC в Base на новый одноразовый адрес Ethereum. Газ для платежа с него даёт me7, так что ETH не нужен. Комиссии там обычные: около 1 USDC в Base, переход и 1,3 доллара с газом в Ethereum.',
           ],
         },
         {

@@ -28,15 +28,18 @@ The only official address of me7 is **https://me7.network**. Anything else that 
 | **The vault** | A vault password is not compared with a stored one. It is turned by mathematics into a separate wallet. Another password opens another, empty vault. |
 | **USDC without ETH** | You sign a USDC transfer on Base with your own key and me7 covers the network gas. One plain fee, shown before you confirm. |
 | **USDT without TRX** | A USDT transfer on Tron from an address with no TRX: me7 pays the network, the fee is taken in USDT and shown before you confirm. |
+| **USDT and USDC on Ethereum without ETH** | A token transfer on Ethereum from an address with no ETH: me7 lends exactly the gas it burns and sends it with your two signed transfers as one bundle, so that all of it gets into a block or none of it does. The fee is taken in the coin you send. |
+| **Swaps between networks** | A coin on Base or Ethereum for a coin on another network (Tron, Bitcoin, Ethereum, Base), through NEAR Intents, to your own address there. For USDC on Base and USDT and USDC on Ethereum me7 pays the gas. |
 | **Address rotation** | After every payment received the wallet hands out a new address. A payer sees their own transfer, not your whole balance. |
 | **Stealth addresses** | One code that never changes (ERC-5564): the payer's wallet makes a new address from it for every USDC payment, and only the receiver can find and spend it. Such an address never needs ETH. |
-| **Stealth payment in USDT** | USDT on Tron paid out of USDC on Base: the money crosses through NEAR Intents onto a new Tron address used once and is paid on from there, so the recipient does not see your own Tron address. |
+| **Stealth payment in USDT and USDC** | USDT on Tron, or USDT or USDC on Ethereum, paid out of USDC on Base: the money crosses through NEAR Intents onto a new address used once and is paid on from there, so the recipient does not see your own address. |
 | **Address selection** | Money sits on several addresses, like coins in a Bitcoin wallet. A payment takes as many as it needs and leaves the rest untouched. |
 | **Transit address** | Money is gathered on a fresh one-time address and leaves from there, in one operation. |
 | **Cold signing** | With a Ledger the key never leaves the device. Every transfer is read on its screen; nothing is signed blind. |
 | **P2P cash-out** | USDC is sold straight to a person through the open Peer protocol. |
 | **Encrypted contacts** | The address book is encrypted in the browser with a key from your phrase before it goes anywhere. A contact can be an address or a stealth code. |
-| **Address screening** | Before USDC is sent, every address is checked against scam and sanctions lists. |
+| **Address screening and quarantine** | Before a transfer is sent, every address is checked against scam and sanctions lists. Money that reaches you from a listed or frozen sender quarantines only the address it came to; the rest of the wallet works as usual. |
+| **AML check on request** | A risk report on any address, bought from BlockSec without an account and paid for in USDC. BlockSec sees me7, not who asked. One service's rating, not a guarantee. |
 | **Look-alike and freeze warnings** | An address made to pass for one you already pay to is called out before you send and hidden from the history. Before USDT moves on Tron, the token's own freeze list is asked about both sides. |
 | **Batch payment** | Several recipients in one operation: all of them are paid or none is. Stealth codes can be among them. |
 | **Names** | Sending to a name such as anna.base.eth, and a name of your own for the main address, paid in USDC. |
@@ -87,7 +90,7 @@ npm test
 npm run typecheck
 ```
 
-Sending USDC on Base without ETH, sending USDT on Tron without TRX, paying USDT out of USDC and syncing contacts need me7's own service and work only on me7.network. Everything else works from a local copy.
+Sending USDC on Base without ETH, USDT on Tron without TRX and USDT and USDC on Ethereum without ETH, swaps between networks through me7's service, stealth payments out of USDC, the quarantine of an address, the AML check and syncing contacts need me7's own service and work only on me7.network. Everything else works from a local copy.
 
 ## Where things are
 

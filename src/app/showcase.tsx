@@ -128,6 +128,12 @@ const FILMS: Record<string, readonly Draw[]> = {
     (c) => ([30, 75, 120].forEach((y) => (ring(c, 30, y, 10), line(c, [150, 75, 188, y], 4), box(c, 194, y - 13, 26, 26, 4))), box(c, 90, 50, 60, 50), dot(c, 120, 75, 12)),
     (c) => ([30, 75, 120].forEach((y) => (ring(c, 30, y, 10), c.fillRect(192, y - 15, 30, 30))), box(c, 90, 50, 60, 50), text(c, 'st:', 120, 83, 19)),
   ],
+  // A swap between networks: a coin on one network goes in, the crossing takes it, a coin on another comes out.
+  bridge: [
+    (c) => (dot(c, 40, 66, 20), text(c, 'usdt', 40, 118, 15), box(c, 100, 46, 40, 40, 4), ring(c, 202, 66, 20), text(c, 'btc', 202, 118, 15)),
+    (c) => (ring(c, 40, 66, 18), text(c, 'usdt', 40, 118, 15), line(c, [62, 66, 96, 66], 4), c.fillRect(98, 44, 44, 44), ring(c, 202, 66, 20), text(c, 'btc', 202, 118, 15)),
+    (c) => (ring(c, 40, 66, 18), box(c, 100, 46, 40, 40, 4), line(c, [144, 66, 178, 66], 4), dot(c, 202, 66, 22), tick(c, 202, 118)),
+  ],
   // USDT paid out of USDC: the money crosses from Base to a new Tron address, and is paid on from there.
   cross: [
     (c) => (dot(c, 34, 66, 20), text(c, 'usdc', 34, 118, 15), box(c, 100, 46, 40, 40, 4), text(c, 'new', 120, 118, 15), ring(c, 206, 66, 20), text(c, 'usdt', 206, 118, 15)),
@@ -169,6 +175,12 @@ const FILMS: Record<string, readonly Draw[]> = {
     (c) => (shield(c, 120, 76), tick(c, 120, 76, 1.5)),
   ],
   // One operation, several recipients.
+  // A report on an address, on request: the address is asked about, a report comes back, with a figure on it.
+  aml: [
+    (c) => (text(c, '0x71c4…9f3a', 120, 82, 21), text(c, '?', 120, 124, 26)),
+    (c) => (box(c, 70, 22, 100, 106), line(c, [86, 48, 154, 48], 4), line(c, [86, 70, 138, 70], 4), line(c, [86, 92, 146, 92], 4)),
+    (c) => (box(c, 70, 22, 100, 106), text(c, '1', 120, 76, 44), text(c, 'risk', 120, 112, 15)),
+  ],
   batch: [
     (c) => (dot(c, 40, 75, 26), [24, 58, 92, 126].forEach((y) => ring(c, 204, y, 11))),
     (c) => (dot(c, 40, 75, 12), [24, 58, 92, 126].forEach((y) => (line(c, [58, 75, 186, y], 4), ring(c, 204, y, 11)))),

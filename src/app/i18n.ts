@@ -889,8 +889,14 @@ const ru = {
       {
         id: 'gasless',
         name: 'Газ платит me7',
-        text: 'Вы подписываете перевод своим ключом, а сеть за него оплачивает me7. USDC в сети Base уходит без ETH, USDT в сети Tron без TRX. Вместо газа одна понятная комиссия в той же монете, и её видно до подтверждения.',
+        text: 'Вы подписываете перевод своим ключом, а сеть за него оплачивает me7. USDC в сети Base уходит без ETH, USDT в сети Tron без TRX, USDT и USDC в сети Ethereum тоже без ETH. Вместо газа одна понятная комиссия в той же монете, и её видно до подтверждения.',
         usual: 'без монеты сети на балансе перевод не уйдёт.',
+      },
+      {
+        id: 'bridge',
+        name: 'Обмен между сетями без газа',
+        text: 'USDC из Base, USDT и USDC из Ethereum меняются на монету в другой сети: в Tron, Bitcoin, Ethereum или Base. Газ платит me7, комиссия берётся в той же монете. Обмен идёт через сторонний сервис NEAR Intents: пока он идёт, деньги у него, а результат приходит на ваш же адрес.',
+        usual: 'биржа или мост, и в каждой сети нужна своя монета на газ.',
       },
       {
         id: 'rotate',
@@ -918,9 +924,9 @@ const ru = {
       },
       {
         id: 'cross',
-        name: 'Stealth-платёж в USDT',
-        text: 'Платите USDT в сети Tron из своих USDC в Base. Деньги приходят на новый адрес Tron, которым кошелёк пользуется один раз, и уходят получателю уже с него. TRX не нужен.',
-        usual: 'получатель видит ваш постоянный адрес в Tron: остаток на нём и всю историю платежей.',
+        name: 'Stealth-платёж в USDT и USDC',
+        text: 'Платите USDT в сети Tron, USDT или USDC в сети Ethereum из своих USDC в Base. Деньги переходят через сторонний сервис NEAR Intents на новый адрес, которым кошелёк пользуется один раз, и уходят получателю уже с него. Ни TRX, ни ETH не нужны.',
+        usual: 'получатель видит ваш постоянный адрес: остаток на нём и всю историю платежей.',
       },
       {
         id: 'ledger',
@@ -942,9 +948,15 @@ const ru = {
       },
       {
         id: 'screen',
-        name: 'Проверка адреса',
-        text: 'Перед отправкой USDC каждый адрес сверяется с базой мошеннических и санкционных адресов. На такие перевод не уйдёт.',
-        usual: 'кошелёк отправит куда угодно, и перевод не вернуть.',
+        name: 'Проверка адреса и карантин',
+        text: 'Перед отправкой каждый адрес сверяется со списками санкционных и мошеннических адресов: на такой перевод не уйдёт. Если деньги с такого адреса пришли вам, на карантин уходит только тот ваш адрес, куда они пришли. Остальные работают как обычно.',
+        usual: 'кошелёк отправит куда угодно, а одна плохая монета пачкает весь адрес.',
+      },
+      {
+        id: 'aml',
+        name: 'Проверка AML по запросу',
+        text: 'Любой адрес, свой или чужой, можно проверить у стороннего сервиса BlockSec: связан ли он с санкциями, взломами, мошенничеством. Без регистрации, оплата в USDC. BlockSec не видит, кто спрашивал. Это оценка одного сервиса, а не гарантия.',
+        usual: 'отдельный сайт, аккаунт и пакет проверок, купленный вперёд.',
       },
       {
         id: 'batch',
@@ -1853,9 +1865,15 @@ const en: Dict = {
       },
       {
         id: 'gasless',
-        name: 'me7 pays the gas',
-        text: 'You sign the transfer with your own key, and me7 pays the network for it. USDC on Base goes without ETH, USDT on Tron without TRX. Instead of gas there is one plain fee in the same coin, shown before you confirm.',
+        name: "me7 pays the gas",
+        text: "You sign the transfer with your own key, and me7 pays the network for it. USDC on Base goes without ETH, USDT on Tron without TRX, USDT and USDC on Ethereum without ETH as well. Instead of gas there is one plain fee in the same coin, shown before you confirm.",
         usual: "without the network's coin on the balance a transfer does not go.",
+      },
+      {
+        id: 'bridge',
+        name: 'Swaps between networks, no gas',
+        text: 'USDC on Base, USDT and USDC on Ethereum can be swapped for a coin on another network: Tron, Bitcoin, Ethereum or Base. me7 pays the gas, and its fee is taken in the coin you give. The swap goes through a third party, NEAR Intents: while it runs the money is in its hands, and the result arrives on your own address.',
+        usual: 'an exchange or a bridge, and the coin of each network to pay its gas.',
       },
       {
         id: 'rotate',
@@ -1883,9 +1901,9 @@ const en: Dict = {
       },
       {
         id: 'cross',
-        name: 'Stealth payment in USDT',
-        text: 'Pay USDT on Tron out of your USDC on Base. The money arrives on a new Tron address the wallet uses once, and goes to the recipient from there. No TRX needed.',
-        usual: 'the recipient sees your standing Tron address: what it holds and every payment it ever made.',
+        name: 'Stealth payment in USDT and USDC',
+        text: 'Pay USDT on Tron, or USDT or USDC on Ethereum, out of your USDC on Base. The money crosses through a third party, NEAR Intents, to a new address the wallet uses once, and goes to the recipient from there. Neither TRX nor ETH is needed.',
+        usual: 'the recipient sees your standing address: what it holds and every payment it ever made.',
       },
       {
         id: 'ledger',
@@ -1907,9 +1925,15 @@ const en: Dict = {
       },
       {
         id: 'screen',
-        name: 'Address screening',
-        text: 'Before USDC is sent, every address is checked against a database of scam and sanctioned addresses. A transfer to one of those does not go.',
-        usual: 'the wallet sends anywhere, and a transfer cannot be taken back.',
+        name: 'Address screening and quarantine',
+        text: 'Before a transfer is sent, every address is checked against lists of sanctioned and scam addresses: a transfer to one of those does not go. If money from such an address reaches you, only the address of yours it came to goes into quarantine. The others work as usual.',
+        usual: 'the wallet sends anywhere, and one bad coin stains a whole address.',
+      },
+      {
+        id: 'aml',
+        name: 'An AML check on request',
+        text: 'Any address, yours or somebody else\'s, can be checked with a third party, BlockSec: whether it is tied to sanctions, hacks or fraud. No sign-up, paid in USDC. BlockSec does not see who asked. It is one service\'s rating, not a guarantee.',
+        usual: 'a separate site, an account and a pack of checks bought ahead.',
       },
       {
         id: 'batch',
