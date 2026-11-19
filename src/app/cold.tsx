@@ -9,9 +9,11 @@ import {
   tronRef,
   type EvmTransaction,
 } from '../core/index.ts';
+import { buildEthGasPair, type EthGasTerms } from '../core/ethgas.ts';
 import { LedgerError, ledgerTokenDescription } from '../core/ledger.ts';
 import { fetchEvmBalance, formatUnits } from '../net/balances.ts';
-import { NET } from '../net/endpoints.ts';
+import { ETH_GASLESS, NET, TRON_GASLESS } from '../net/endpoints.ts';
+import { fetchEthGasTerms, fetchTronQuote, RelayError, relayEthSend, relayTronSend } from '../net/relay.ts';
 import { Ledger, ledgerWays, type LedgerWay } from '../net/ledger.ts';
 import { broadcastEvm, estimateEvmGas, fetchErc20Balance, fetchEvmFees, fetchEvmNonce, fetchUsdPrices, type UsdPrices } from '../net/send.ts';
 import {
@@ -25,7 +27,8 @@ import {
 } from '../net/tron.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, feeAssetOf, type AssetDef } from './assets.ts';
 import { Spinner } from './fx.tsx';
-import { CopyButton, Qr } from './home.tsx';
+import { ColdSwap } from './coldswap.tsx';
+import { CopyButton, Qr, relayErrorText } from './home.tsx';
 import type { Dict } from './i18n.ts';
 import { AddressCode } from './payqr.tsx';
 import { CoinIcon } from './icons.tsx';
@@ -88,14 +91,14 @@ function savePair(evm: string, tron: string): void {
 }
 
 /** Raised when the device has a different app open than is needed; `null` means neither of the two this wallet knows. */
-class WrongApp extends Error {
+export class WrongApp extends Error {
   readonly need: DeviceApp | null;
   constructor(need: DeviceApp | null) {
     super(`Ledger: open the ${need ?? 'Ethereum or Tron'} app`);
     this.need = need;
   }
 }
-async function requireApp(ledger: Ledger, need: DeviceApp): Promise<void> {
+export async function requireApp(ledger: Ledger, need: DeviceApp): Promise<void> {
   if ((await ledger.appName()) !== need) throw new WrongApp(need);
 }
 
@@ -126,7 +129,7 @@ async function readSession(ledger: Ledger, known: { evm: string | null; tron: st
 }
 
 /** What went wrong with the device, in words the user can act on. */
-function ledgerText(t: Dict, e: unknown): string {
+export function ledgerText(t: Dict, e: unknown): string {
   const l = t.ledger;
   if (e instanceof WrongApp) return e.need ? l.errOpenApp.replace('{app}', e.need) : l.errOpenAny;
   if (e instanceof LedgerError) {
@@ -234,8 +237,59 @@ export function LedgerConnect({ t, onDone, onBack }: { t: Dict; onDone: (session
   );
 }
 
+// An address me7's service has refused as quarantined is remembered, so that the wallet stops offering the service for it.
+const heldKey = (address: string) => `me7.ledger.held.${NET.mode}.${address.startsWith('0x') ? address.toLowerCase() : address}`;
+export function coldHeld(address: string): boolean {
+  try {
+    return !!address && localStorage.getItem(heldKey(address)) === '1';
+  } catch {
+    return false;
+  }
+}
+function markColdHeld(address: string): void {
+  try {
+    localStorage.setItem(heldKey(address), '1');
+  } catch {
+    /* said again by the service next time */
+  }
+}
+
+/** A token on Ethereum that me7's service carries without ETH: two plain transfers, each of which the device shows in full. */
+export const servedOnEth = (a: AssetDef): boolean => NET.mode === 'mainnet' && a.kind === 'erc20' && a.chain !== 'base' && !!a.contract && a.contract.toLowerCase() in ETH_GASLESS.tokens;
+/** USDT on Tron, which me7's service carries without TRX the same way. */
+export const servedOnTron = (a: AssetDef): boolean => NET.mode === 'mainnet' && a.kind === 'trc20' && a.contract === NET.tron.usdt;
+
+/** What me7's service said when it would not carry a transfer, in the user's words. A quarantined address is remembered. */
+export function serviceText(t: Dict, err: RelayError, from: string): string {
+  if (err.code === 'held') markColdHeld(from);
+  return err.code === 'small' ? t.ethless.small : err.code === 'pending' ? t.ethless.pending : err.code === 'no-funds' ? t.noFunds : relayErrorText(t, err);
+}
+
+/** Have the device sign the service's two transfers of a token on Ethereum, the fee and the payment, and hand them over. Returns the payment's hash. */
+export async function coldEthless(ledger: Ledger, evm: string, contract: string, description: string, to: string, amount: bigint, terms: EthGasTerms, signed?: () => void): Promise<string> {
+  const pair = buildEthGasPair(NET.evm.chainId, contract, to, amount, terms);
+  const fee = await ledger.sign(pair.fee, evm, description);
+  const main = await ledger.sign(pair.main, evm, description);
+  signed?.();
+  return relayEthSend(fee.raw, main.raw);
+}
+
+/** The same on Tron: the payment and the fee, two transfers of USDT, signed on the device and handed over. Returns the payment's id. */
+export async function coldTronless(ledger: Ledger, from: string, contract: string, to: string, amount: bigint, fee: bigint, receiver: string, signed?: () => void): Promise<string> {
+  const block = await fetchTronBlock(NET.tron.nodes);
+  // The service needs time to rent the energy, and the user to confirm twice on the device: ten minutes.
+  const ref = { ...tronRef(block, Date.now()), expiration: block.timestamp + TRON_GASLESS.lifetime };
+  const main = await ledger.signTron(buildTrc20Transfer(from, contract, to, amount, ref, TRON_GASLESS.feeLimit), from);
+  const paid = await ledger.signTron(buildTrc20Transfer(from, contract, receiver, fee, ref, TRON_GASLESS.feeLimit), from);
+  signed?.();
+  return relayTronSend(main.signedHex, paid.signedHex);
+}
+
 type Prepared = { asset: AssetDef; to: string; amount: bigint; fee: bigint } & (
   | { kind: 'evm'; tx: EvmTransaction; token: string | null }
+  // Through me7's service, which pays the network: the fee is in the coin itself, and the device signs two transfers.
+  | { kind: 'ethless'; terms: EthGasTerms; token: string }
+  | { kind: 'tronless'; receiver: string }
   // A Tron transaction is tied to a recent block, so it is built at the moment of signing.
   | { kind: 'tron'; feeLimit: bigint; activates: boolean }
 );
@@ -285,7 +339,16 @@ function ColdSend({
       const data = erc20TransferData(recipient, value);
       const gasLimit = await estimateEvmGas(chain.rpc, { from: evm, to: asset.contract, value: 0n, data: hexOf(data) }, 200_000n);
       const fee = gasLimit * fees.maxFeePerGas;
-      if (fee + reserve > coin) throw new Error(t.noGas);
+      if (fee + reserve > coin) {
+        // No ETH for the gas: me7's service carries the transfer, if it is a coin it carries and the address is not in quarantine.
+        if (!servedOnEth(asset) || coldHeld(evm)) throw new Error(t.noGas);
+        const first = await fetchEthGasTerms(evm, asset.contract, recipient, units ?? held);
+        const sum = units ?? held - first.fee;
+        if (sum <= 0n || sum + first.fee > held) throw new Error(t.noFunds);
+        const terms = units === null ? await fetchEthGasTerms(evm, asset.contract, recipient, sum) : first;
+        if (sum + terms.fee > held) throw new Error(t.noFunds);
+        return { kind: 'ethless', asset, to: recipient, amount: sum, fee: terms.fee, terms, token };
+      }
       return { kind: 'evm', asset, to: recipient, amount: value, fee, token, tx: { ...base, gasLimit, to: asset.contract, value: 0n, data } };
     }
     const gasLimit = await estimateEvmGas(chain.rpc, { from: evm, to: recipient, value: units ?? 1n });
@@ -316,7 +379,14 @@ function ColdSend({
       const feeLimit = (energy * rates.perEnergy * 13n) / 10n;
       const paidEnergy = energy > resources.energy ? ((energy - resources.energy) * rates.perEnergy * 13n) / 10n : 0n;
       const fee = paidEnergy + bandwidthFee(buildTrc20Transfer(from, asset.contract, recipient, value, ref, feeLimit));
-      if (fee > me.balance) throw new Error(t.noGas);
+      if (fee > me.balance) {
+        // No TRX for the network: me7's service carries the transfer and takes its fee in USDT.
+        if (!servedOnTron(asset) || coldHeld(from)) throw new Error(t.noGas);
+        const quote = await fetchTronQuote(from, recipient, units ?? held);
+        const sum = units ?? held - quote.fee;
+        if (sum <= 0n || sum + quote.fee > held) throw new Error(t.noFunds);
+        return { kind: 'tronless', asset, to: recipient, amount: sum, fee: quote.fee, receiver: quote.receiver };
+      }
       return { kind: 'tron', asset, to: recipient, amount: value, fee, feeLimit, activates: false };
     }
     // Sending to an address nobody has used yet activates it, for a flat fee instead of the per-byte one.
@@ -338,7 +408,7 @@ function ColdSend({
       setPrepared(isTron(asset) ? await prepareTron(recipient, units) : await prepareEvm(recipient, units));
       setStep('review');
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : t.nodesDown);
+      setError(err instanceof RelayError ? serviceText(t, err, isTron(asset) ? (session.tron ?? '') : evm) : err instanceof Error && err.message ? err.message : t.nodesDown);
       setStep('form');
     }
   };
@@ -354,6 +424,10 @@ function ColdSend({
         const signed = await session.ledger.sign(prepared.tx, evm, prepared.token ?? undefined);
         setStep('sending');
         setTxid(await broadcastEvm(evmOf(prepared.asset).rpc, signed.raw, signed.hash));
+      } else if (prepared.kind === 'ethless') {
+        setTxid(await coldEthless(session.ledger, evm, prepared.asset.contract ?? '', prepared.token, prepared.to, prepared.amount, prepared.terms, () => setStep('sending')));
+      } else if (prepared.kind === 'tronless') {
+        setTxid(await coldTronless(session.ledger, session.tron ?? '', prepared.asset.contract ?? '', prepared.to, prepared.amount, prepared.fee, prepared.receiver, () => setStep('sending')));
       } else {
         const from = session.tron ?? '';
         const block = await fetchTronBlock(NET.tron.nodes);
@@ -370,13 +444,13 @@ function ColdSend({
       setStep('done');
     } catch (err) {
       const device = err instanceof LedgerError || err instanceof WrongApp || /Ledger|disconnected/i.test(String((err as Error | null)?.message));
-      setError(device ? ledgerText(t, err) : `${t.sendFailed} ${String((err as Error | null)?.message ?? '').slice(0, 160)}`);
+      setError(device ? ledgerText(t, err) : err instanceof RelayError ? serviceText(t, err, isTron(prepared.asset) ? (session.tron ?? '') : evm) : `${t.sendFailed} ${String((err as Error | null)?.message ?? '').slice(0, 160)}`);
       setStep('review');
     }
   };
 
   if (step === 'done' && prepared) {
-    const link = prepared.kind === 'tron' ? NET.tron.explorerTx(txid) : evmOf(prepared.asset).explorerTx(txid);
+    const link = isTron(prepared.asset) ? NET.tron.explorerTx(txid) : evmOf(prepared.asset).explorerTx(txid);
     return (
       <section class="panel">
         <h2 class="title">{t.sentTitle}</h2>
@@ -394,7 +468,8 @@ function ColdSend({
 
   if ((step === 'review' || step === 'signing' || step === 'sending') && prepared) {
     const a = prepared.asset;
-    const feeAsset = feeAssetOf(a);
+    const served = prepared.kind === 'ethless' || prepared.kind === 'tronless';
+    const feeAsset = served ? a : feeAssetOf(a);
     const waiting = step !== 'review';
     const fee = text(feeAsset, prepared.fee);
     return (
@@ -413,14 +488,15 @@ function ColdSend({
             {text(a, prepared.amount)} {a.ticker} <span class="dim">{a.net}</span>
             <span class="dim">{usd(a, prepared.amount)}</span>
           </dd>
-          <dt>{t.fee}</dt>
+          <dt>{served ? t.gasless.feeLabel : t.fee}</dt>
           <dd>
-            {fee.startsWith('<') ? '' : '≤ '}
+            {served || fee.startsWith('<') ? '' : '≤ '}
             {fee} {feeAsset.ticker}
             <span class="dim">{usd(feeAsset, prepared.fee)}</span>
           </dd>
         </dl>
         {prepared.kind === 'tron' && prepared.activates && <p class="note">{l.tronActivates}</p>}
+        {served && <p class="note">{l.twoSigns.replace('{fee}', `${fee} ${a.ticker}`)}</p>}
         <p class={waiting ? 'alert' : 'note'}>
           {step === 'sending' ? l.sending : waiting ? l.lookAtDevice : l.beforeSign.replace('{app}', appOf(a))}
         </p>
@@ -575,7 +651,7 @@ export function ColdHome({
   onExit: () => void;
 }) {
   const l = t.ledger;
-  const [view, setView] = useState<'main' | 'send' | 'receive' | 'why'>('main');
+  const [view, setView] = useState<'main' | 'send' | 'receive' | 'swap' | 'why'>('main');
   const [balances, setBalances] = useState<Record<string, bigint | null>>({});
   const [prices, setPrices] = useState<UsdPrices | null>(null);
   const [busy, setBusy] = useState(false);
@@ -697,6 +773,20 @@ export function ColdHome({
         }}
       />
     );
+  } else if (view === 'swap') {
+    body = (
+      <ColdSwap
+        key={app}
+        t={t}
+        session={session}
+        balances={balances}
+        prices={prices}
+        onClose={(done) => {
+          setView('main');
+          if (done) void refresh();
+        }}
+      />
+    );
   } else if (view === 'receive') {
     body = <ColdReceive key={app} t={t} session={session} onClose={() => setView('main')} />;
   } else if (view === 'why') {
@@ -733,6 +823,16 @@ export function ColdHome({
               {t.receive}
             </button>
           </div>
+          {NET.mode === 'mainnet' && (
+            <button class="btn" onClick={() => setView('swap')}>
+              {l.swapEntry}
+            </button>
+          )}
+          {coldHeld(coldAddress(session)) && (
+            <p class="alert" role="status">
+              {l.heldNote}
+            </p>
+          )}
           <p class="note">{l.modeNote}</p>
         </section>
 

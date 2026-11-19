@@ -109,7 +109,7 @@ export interface BridgePlan {
 }
 
 /** An address that stands in for the service's, which is not known until the swap is ordered: only its place in a plan matters. */
-const STAND_IN = '0x000000000000000000000000000000000000dEaD';
+export const STAND_IN = '0x000000000000000000000000000000000000dEaD';
 
 /** Where a refund returns to. USDC on Base goes back to the address shown for receiving, as any payment to the wallet would; the rest to the main address on the coin's network. */
 async function refundAddress(wallet: Wallet, way: BridgeWay): Promise<string> {
@@ -117,25 +117,28 @@ async function refundAddress(wallet: Wallet, way: BridgeWay): Promise<string> {
 }
 
 /** A Tron address nobody holds, standing in for the service's: paying to an address that never held USDT costs the most, so the fee asked ahead is not below the real one. */
-function tronStandIn(): string {
+export function tronStandIn(): string {
   const raw = new Uint8Array(21);
   crypto.getRandomValues(raw);
   raw[0] = 0x41;
   return tronAddressFromBytes(raw);
 }
 
-const order = (wallet: Wallet, from: AssetDef, to: AssetDef, amountIn: bigint, deadline: number, refundTo: string): SwapOrder => ({
+/** The order for a swap, whoever holds the key: what is given and wanted, where the result arrives and where a refund returns. */
+export const swapOrderFor = (from: AssetDef, to: AssetDef, amountIn: bigint, deadline: number, recipient: string, refundTo: string): SwapOrder => ({
   origin: bridgeName(from) ?? '',
   destination: bridgeName(to) ?? '',
-  recipient: ownAddress(wallet, to),
+  recipient,
   refundTo,
   amountIn,
   slippageBps: CROSS.slippageBps,
   deadline,
   ...(CROSS.swapFeeBps > 0 && SWAP_FEE.receiver ? { fee: { recipient: SWAP_FEE.receiver, bps: CROSS.swapFeeBps } } : {}),
 });
+const order = (wallet: Wallet, from: AssetDef, to: AssetDef, amountIn: bigint, deadline: number, refundTo: string): SwapOrder => swapOrderFor(from, to, amountIn, deadline, ownAddress(wallet, to), refundTo);
 
-const floorFor = (from: AssetDef, to: AssetDef, amountIn: bigint, prices: UsdPrices): bigint => {
+/** The least a swap may promise for what is given, by outside prices. */
+export const floorFor = (from: AssetDef, to: AssetDef, amountIn: bigint, prices: UsdPrices): bigint => {
   const usdc = ASSETS.find((a) => a.price === 'usdc');
   const flat = usdc ? worth(BigInt(CROSS.swapFlatUsd) * 10n ** BigInt(usdc.decimals), usdc, to, prices) : 0n;
   return swapFloor(worth(amountIn, from, to, prices), CROSS.swapLossBps, flat);
@@ -205,7 +208,8 @@ export async function estimateBridge(wallet: Wallet, from: AssetDef, to: AssetDe
   return (await fetchCrossSwapQuote(CROSS.api, order(wallet, from, to, amountIn, Date.now() + CROSS.lifetime, ownAddress(wallet, from)), true, 0n)).amountOut;
 }
 
-const storeKey = (wallet: Wallet) => `me7.bridge.${NET.mode}.${wallet.evm.toLowerCase()}`;
+const keyOf = (owner: string) => `me7.bridge.${NET.mode}.${owner.startsWith('0x') ? owner.toLowerCase() : owner}`;
+const storeKey = (wallet: Wallet) => keyOf(wallet.evm);
 const isText = (v: unknown): v is string => typeof v === 'string';
 
 export function loadBridgings(wallet: Wallet): Bridging[] {
@@ -222,6 +226,21 @@ function save(wallet: Wallet, one: Bridging): boolean {
     const list = loadBridgings(wallet);
     const at = list.findIndex((b) => b.id === one.id);
     localStorage.setItem(storeKey(wallet), JSON.stringify((at < 0 ? [...list, one] : list.map((b, i) => (i === at ? one : b))).slice(-30)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The same note for a session that holds no key (a Ledger): written under the address the money leaves from.
+ * `null` takes the note away again, for a swap that never began.
+ */
+export function noteBridging(owner: string, id: string, one: Bridging | null): boolean {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(keyOf(owner)) ?? '[]');
+    const list = (Array.isArray(raw) ? (raw as Bridging[]) : []).filter((b) => !!b && b.id !== id);
+    localStorage.setItem(keyOf(owner), JSON.stringify((one ? [...list, one] : list).slice(-30)));
     return true;
   } catch {
     return false;

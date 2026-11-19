@@ -145,6 +145,7 @@ const ru = {
   signIn: 'войти',
   noKey: 'В этом файле нет ключа me7.',
   badPassword: 'Пароль не подходит, или в этом файле нет ключа.',
+  keyCutHint: 'Если пароль точно верный: файл мог потерять ключ по дороге. Мессенджеры и галереи пережимают фото и срезают ключ, когда картинку отправляют как фото, а не как файл. Возьмите исходный файл, тот, что сохранил кошелёк.',
   tooLarge: 'Файл больше 32 МБ.',
   unsupported: 'Этот файл-ключ создан более новой версией me7.',
   failed: 'Не получилось. Попробуйте ещё раз.',
@@ -720,12 +721,12 @@ const ru = {
     entry: 'войти с Ledger',
     title: 'режим Ledger: только кошелёк',
     noticeLead:
-      'С Ledger в me7 доступны баланс, получение и отправка в сетях Ethereum, Base и Tron (TRX и USDT). Показываются монеты той сети, чьё приложение открыто на Ledger. Обмен, трейдинг, вывод на счёт и сейф в этом режиме отключены. Адрес для получения здесь один и не меняется, USDC отправляется с газом в ETH, контакты остаются в этом браузере.',
+      'С Ledger в me7 доступны баланс, получение и отправка в сетях Ethereum, Base и Tron (TRX и USDT). Показываются монеты той сети, чьё приложение открыто на Ledger. USDT и USDC в Ethereum и USDT в Tron можно отправлять, даже когда нечем оплатить сеть: её оплатит сервис me7. Есть обмен на монету другой сети. Обмен внутри сети, трейдинг, вывод на счёт, stealth и сейф в этом режиме отключены. Адрес для получения здесь один и не меняется, USDC в Base отправляется с газом в ETH, контакты остаются в этом браузере.',
     notice: [
       {
         title: 'почему так',
         items: [
-          'Обмен, трейдинг и вывод работают через контракты. Такие операции Ledger не умеет показать на своём экране и просит «слепую подпись»: подтвердить набор символов, не видя, что именно вы подписываете.',
+          'Обмен внутри сети, трейдинг и вывод работают через контракты. Такие операции Ledger не умеет показать на своём экране и просит «слепую подпись»: подтвердить набор символов, не видя, что именно вы подписываете.',
           'Тогда пришлось бы верить на слово нашему сайту. А смысл Ledger в том, чтобы не верить никому, кроме его собственного экрана.',
         ],
       },
@@ -734,6 +735,7 @@ const ru = {
         items: [
           'Ключ не покидает устройство. Он не попадает ни в браузер, ни на сайт: me7 видит только адрес и готовую подпись.',
           'Каждую отправку Ledger показывает сам: адрес получателя и сумму. Если на экране не то, что вы вводили, не подтверждайте.',
+          'Перевод через сервис me7 и обмен между сетями состоят из таких же обычных переводов. Их два, когда сеть оплачивает сервис: комиссия сервису и сам платёж. При обмене получателем на экране будет адрес сервиса перехода, и кошелёк показывает его рядом для сверки.',
           'Слепая подпись в me7 не используется нигде. Если устройство её попросит, это ошибка: откажитесь.',
         ],
       },
@@ -755,6 +757,13 @@ const ru = {
       'Этот браузер не разрешает сайтам работать с Ledger ни по кабелю, ни по Bluetooth. Откройте me7 в Chrome, Brave или Edge. Safari и Firefox такое подключение не поддерживают.',
     badge: 'ledger',
     modeNote: 'Режим Ledger: каждая отправка подтверждается на экране устройства. Нажмите на метку вверху, чтобы прочитать, что здесь отключено и почему.',
+    swapEntry: 'обмен между сетями',
+    swapNothing: 'В этой сети нет монет, которые можно обменять на монету другой сети в режиме Ledger.',
+    swapNeedOther: 'Результат обмена приходит на ваш же адрес в другой сети. Чтобы кошелёк узнал адрес второй сети, один раз откройте на Ledger приложение {app} и переключитесь на него на главном экране.',
+    swapBefore: 'На Ledger должно быть открыто приложение {app}. На его экране появится перевод на адрес сервиса перехода: этот адрес кошелёк покажет здесь, как только сервис его назовёт.',
+    swapOnDevice: 'Посмотрите на Ledger. Получателем на его экране должен быть адрес сервиса перехода:',
+    twoSigns: 'Сеть оплатит сервис me7. Ledger попросит подтвердить два обычных перевода: комиссию сервису ({fee}) и сам платёж. Сверьте оба на экране устройства.',
+    heldNote: 'Сервис me7 не проводит переводы с этого адреса: на него пришли деньги с адреса из списка. Деньги остаются вашими: отправить их можно обычным переводом, оплатив сеть самостоятельно.',
     disconnect: 'отключить',
     noTrading: 'В режиме Ledger трейдинг отключён: он потребовал бы слепую подпись. Войдите по файлу-ключу, чтобы торговать.',
     beforeSign: 'На Ledger должно быть открыто приложение {app}. Сейчас эти же адрес и сумма появятся на его экране: сверьте их и подтвердите на устройстве.',
@@ -1125,6 +1134,7 @@ const en: Dict = {
   signIn: 'sign in',
   noKey: "There's no me7 key in this file.",
   badPassword: "The password doesn't match, or there's no key in this file.",
+  keyCutHint: 'If the password is surely right, the file may have lost its key on the way. Messengers and galleries recompress photos and cut the key off when a picture is sent as a photo and not as a file. Use the original file, the one the wallet saved.',
   tooLarge: 'The file is larger than 32 MB.',
   unsupported: 'This key file was made by a newer version of me7.',
   failed: "That didn't work. Try again.",
@@ -1700,12 +1710,12 @@ const en: Dict = {
     entry: 'sign in with Ledger',
     title: 'Ledger mode: wallet only',
     noticeLead:
-      'With a Ledger, me7 offers the balance, receiving and sending on Ethereum, Base and Tron (TRX and USDT). The coins shown are those of the network whose app is open on the Ledger. Swapping, trading, withdrawal to an account and the vault are switched off in this mode. There is one receiving address here and it does not change, USDC is sent with gas in ETH, and contacts stay in this browser.',
+      'With a Ledger, me7 offers the balance, receiving and sending on Ethereum, Base and Tron (TRX and USDT). The coins shown are those of the network whose app is open on the Ledger. USDT and USDC on Ethereum and USDT on Tron can be sent even with nothing to pay the network: me7\'s service pays it. A coin can be swapped for a coin on another network. Swapping within a network, trading, withdrawal to an account, stealth and the vault are switched off in this mode. There is one receiving address here and it does not change, USDC on Base is sent with gas in ETH, and contacts stay in this browser.',
     notice: [
       {
         title: 'why',
         items: [
-          'Swapping, trading and withdrawal go through contracts. A Ledger cannot show such operations on its screen and asks for "blind signing": to confirm a string of characters without seeing what you sign.',
+          'Swapping within a network, trading and withdrawal go through contracts. A Ledger cannot show such operations on its screen and asks for "blind signing": to confirm a string of characters without seeing what you sign.',
           'You would then have to take our site at its word. The point of a Ledger is to trust nothing but its own screen.',
         ],
       },
@@ -1714,6 +1724,7 @@ const en: Dict = {
         items: [
           'The key never leaves the device. It reaches neither the browser nor the site: me7 sees only the address and the finished signature.',
           'The Ledger itself shows every transfer: the recipient and the amount. If the screen shows something you did not enter, do not confirm.',
+          'A transfer through me7\'s service and a swap between networks are made of the same plain transfers. There are two when the service pays the network: its fee and the payment itself. In a swap the recipient on the screen is the crossing service\'s address, and the wallet shows it beside for you to compare.',
           'me7 uses blind signing nowhere. If the device asks for it, something is wrong: refuse.',
         ],
       },
@@ -1735,6 +1746,13 @@ const en: Dict = {
       'This browser does not let sites work with a Ledger, by cable or by Bluetooth. Open me7 in Chrome, Brave or Edge. Safari and Firefox do not support this connection.',
     badge: 'ledger',
     modeNote: 'Ledger mode: every transfer is confirmed on the device screen. Press the label above to read what is switched off here and why.',
+    swapEntry: 'swap between networks',
+    swapNothing: 'This network has no coins that can be swapped for a coin on another network in Ledger mode.',
+    swapNeedOther: 'What a swap buys arrives on your own address on the other network. For the wallet to learn that address, open the {app} app on the Ledger once and switch to it on the main screen.',
+    swapBefore: 'The {app} app must be open on the Ledger. Its screen will show a transfer to the crossing service\'s address: the wallet shows that address here as soon as the service names it.',
+    swapOnDevice: 'Look at the Ledger. The recipient on its screen must be the crossing service\'s address:',
+    twoSigns: 'me7\'s service pays the network. The Ledger will ask you to confirm two plain transfers: the fee to the service ({fee}) and the payment itself. Compare both on the device screen.',
+    heldNote: 'me7\'s service does not carry transfers from this address: it was paid from a listed address. The money is still yours: send it by an ordinary transfer, paying the network yourself.',
     disconnect: 'disconnect',
     noTrading: 'Trading is switched off in Ledger mode: it would need blind signing. Sign in with a key file to trade.',
     beforeSign: 'The {app} app must be open on the Ledger. The same address and amount will now appear on its screen: compare them and confirm on the device.',

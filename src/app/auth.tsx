@@ -616,6 +616,8 @@ export function SignIn({
           {error}
         </p>
       )}
+      {/* A key cut off by a messenger cannot be told from a wrong password, so the likeliest cause is said beside it. */}
+      {error === t.badPassword && <p class="note">{t.keyCutHint}</p>}
       <div class="row">
         <button type="button" class="btn" onClick={onBack}>
           {t.back}
