@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { formatUnits } from '../net/balances.ts';
+import { CROSS, NET } from '../net/endpoints.ts';
 import { RelayError } from '../net/relay.ts';
 import type { UsdPrices } from '../net/send.ts';
 import { evmOf, type AssetDef } from './assets.ts';
@@ -44,6 +45,7 @@ export function Bridge({
   const why = (err: unknown): string => {
     const m = err instanceof Error ? err.message : '';
     if (err instanceof RelayError) return err.code === 'small' ? b.errSmall : err.code === 'pending' ? t.ethless.pending : err.code === 'busy' || err.code === 'empty' ? b.errBusy : relayErrorText(t, err);
+    if (m === 'tron-min' || /minimum swap amount/i.test(m)) return b.errTronMin.replace('{min}', formatUnits(CROSS.tronSwapMin, 6, 0));
     return m === 'no-funds' ? t.swap.noFunds : m === 'no-gas' ? t.swap.noGas : m === 'moved' ? b.errMoved : m === 'too dear' ? b.errDear : m === 'unsaved' ? b.errUnsaved : m === 'needs-mix' ? b.mixAsk : m === 'too-many' ? t.gasless.tooMany : m === 'no-relay' ? t.gasless.unavailable : `${b.errOther} ${m.slice(0, 140)}`.trim();
   };
 
@@ -95,7 +97,7 @@ export function Bridge({
             .replace('{time}', !plan || plan.quote.seconds < 90 ? b.sentQuick : b.minutes.replace('{n}', String(Math.round(plan.quote.seconds / 60))))}</p>
         <p class="note">{b.sentNote}</p>
         {record.tx && (
-          <a class="btn" href={evmOf(from).explorerTx(record.tx)} target="_blank" rel="noopener noreferrer">
+          <a class="btn" href={(plan?.way === 'tron' ? NET.tron.explorerTx : evmOf(from).explorerTx)(record.tx)} target="_blank" rel="noopener noreferrer">
             {t.viewTx}
           </a>
         )}

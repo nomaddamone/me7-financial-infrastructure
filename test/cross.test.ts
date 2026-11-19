@@ -37,9 +37,9 @@ describe('paying USDT on Tron out of USDC on Base', () => {
   });
 
   it('reads an answer to its own order', () => {
-    expect(readCrossQuote(answer(), ORDER, false, LIMITS)).toEqual({ amountIn: 104_400_000n, depositAddress: DEPOSIT, seconds: 90 });
+    expect(readCrossQuote(answer(), ORDER, false, LIMITS)).toEqual({ amountIn: 104_400_000n, leastIn: 104_400_000n, depositAddress: DEPOSIT, seconds: 90 });
     // A look at the price needs no address.
-    expect(readCrossQuote(answer({ depositAddress: undefined }), ORDER, true, LIMITS)).toEqual({ amountIn: 104_400_000n, depositAddress: null, seconds: 90 });
+    expect(readCrossQuote(answer({ depositAddress: undefined }), ORDER, true, LIMITS)).toEqual({ amountIn: 104_400_000n, leastIn: 104_400_000n, depositAddress: null, seconds: 90 });
   });
 
   it('refuses an answer to another order: another recipient, refund address, coin or amount', () => {
@@ -53,6 +53,13 @@ describe('paying USDT on Tron out of USDC on Base', () => {
     expect(bad({ recipientType: 'INTENTS' })).toThrow();
     expect(() => readCrossQuote({}, ORDER, false, LIMITS)).toThrow();
     expect(() => readCrossQuote(null, ORDER, false, LIMITS)).toThrow();
+  });
+
+  it('reads the least the service expects to use, and takes a senseless figure as no room at all', () => {
+    expect(readCrossQuote(answer({ minAmountIn: '103400000' }), ORDER, true, LIMITS).leastIn).toBe(103_400_000n);
+    expect(readCrossQuote(answer({ minAmountIn: '104400001' }), ORDER, true, LIMITS).leastIn).toBe(104_400_000n);
+    expect(readCrossQuote(answer({ minAmountIn: '0' }), ORDER, true, LIMITS).leastIn).toBe(104_400_000n);
+    expect(readCrossQuote(answer({ minAmountIn: 103400000 }), ORDER, true, LIMITS).leastIn).toBe(104_400_000n);
   });
 
   it('refuses a quote that delivers less than ordered, costs too much, or names no proper address', () => {
@@ -145,6 +152,20 @@ describe('a swap between networks', () => {
   it('reads an answer to its own order', () => {
     expect(readCrossSwapQuote(reply(), swap, false, 97_000_000n)).toEqual({ amountOut: 99_900_000n, minOut: 99_400_000n, depositAddress: deposit, seconds: 47 });
     expect(readCrossSwapQuote(reply({ depositAddress: undefined }), swap, true, 97_000_000n).depositAddress).toBeNull();
+  });
+
+  it('takes a Tron address to pay to when what is given is on Tron, and no other kind', () => {
+    const mineTron = 'TMkkPBi7UcHb3SGTpxqTFFKF52e4cm95Vo';
+    const payTron = 'TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH';
+    const fromTron = { ...swap, origin: 'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near', refundTo: mineTron };
+    const said = (quote: Record<string, unknown>) => ({ quote: { amountIn: '100000000', amountOut: '99900000', minAmountOut: '99400000', timeEstimate: 47, ...quote }, quoteRequest: crossSwapRequest(fromTron, false) });
+    expect(readCrossSwapQuote(said({ depositAddress: payTron }), fromTron, false, 0n).depositAddress).toBe(payTron);
+    expect(() => readCrossSwapQuote(said({ depositAddress: deposit }), fromTron, false, 0n)).toThrow('no deposit address');
+    expect(() => readCrossSwapQuote(said({ depositAddress: `${payTron.slice(0, -1)}x` }), fromTron, false, 0n)).toThrow('no deposit address');
+    expect(() => readCrossSwapQuote(said({ depositAddress: mineTron }), fromTron, false, 0n)).toThrow('no deposit address');
+    expect(() => readCrossSwapQuote(said({ depositAddress: payTron, depositMemo: '7' }), fromTron, false, 0n)).toThrow('no deposit address');
+    // And a swap from an EVM network still takes no Tron address.
+    expect(() => readCrossSwapQuote(reply({ depositAddress: payTron }), swap, false, 0n)).toThrow('no deposit address');
   });
 
   it('refuses an answer to another order', () => {

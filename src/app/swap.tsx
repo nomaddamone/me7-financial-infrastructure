@@ -6,14 +6,15 @@ import { erc20ApproveData } from '../core/peer.ts';
 import { pocketTotals } from '../core/rotation.ts';
 import { checkSwap, SWAP_NATIVE, SWAP_ROUTER, swapReturned } from '../core/swap.ts';
 import { fetchEvmBalance, formatUnits } from '../net/balances.ts';
-import { NET, SWAP_FEE } from '../net/endpoints.ts';
+import { CROSS, NET, SWAP_FEE } from '../net/endpoints.ts';
+import { fetchTrc20Balance } from '../net/tron.ts';
 import { fetchErc20Balance, fetchEvmFees, type UsdPrices } from '../net/send.ts';
 import { buildSwap, fetchSwapRoute, fetchTokenAllowance, type SwapRoute } from '../net/swap.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, type AssetDef } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { Spinner } from './fx.tsx';
 import { loadRotation } from './addresses.ts';
-import { bridgeTargets, estimateBridge } from './bridge.ts';
+import { bridgeTargets, estimateBridge, givesTron, TRON_GIVABLE } from './bridge.ts';
 import { Bridge } from './bridge.tsx';
 import type { Dict } from './i18n.ts';
 import { CoinButton, CoinList } from './swapform.tsx';
@@ -111,11 +112,13 @@ export function Swap({
   // USDC on Base swapped for a coin on another network comes from all of the wallet's addresses, not the main one alone.
   const [pockets, setPockets] = useState<{ plain: bigint; stealth: bigint } | null>(null);
 
-  const from = SWAPPABLE.find((a) => a.id === fromId) ?? SWAPPABLE[0];
+  // What can be given: the coins the aggregator swaps, and USDT on Tron, which goes to other networks only.
+  const givable = givesTron(wallet) ? [...SWAPPABLE, ...TRON_GIVABLE] : SWAPPABLE;
+  const from = givable.find((a) => a.id === fromId) ?? SWAPPABLE[0];
   // A coin is swapped within its own network, or for a coin on another one through the crossing service.
   const here = SWAPPABLE.filter((a) => a.net === from?.net);
   const others = from ? bridgeTargets(from) : [];
-  const to = [...here, ...others].find((a) => a.id === toId && a.id !== from?.id) ?? here.find((a) => a.id !== from?.id);
+  const to = [...here, ...others].find((a) => a.id === toId && a.id !== from?.id) ?? here.find((a) => a.id !== from?.id) ?? others[0];
   useEffect(() => {
     // The trading terminal follows pairs within one network only.
     if (from && to && to.net === from.net) onPair?.(from, to);
@@ -135,6 +138,12 @@ export function Swap({
         () => undefined,
       );
     }
+    if (givesTron(wallet))
+      for (const a of TRON_GIVABLE)
+        void fetchTrc20Balance(NET.tron.nodes, a.contract ?? '', wallet.tron).then(
+          (units) => live && setBalances((known) => ({ ...known, [a.id]: units })),
+          () => undefined,
+        );
     if (NET.base) void loadRotation(wallet).then((r) => live && setPockets(pocketTotals(r.spendable)), () => undefined);
     return () => {
       live = false;
@@ -171,7 +180,7 @@ export function Swap({
     if (a.id === to.id) setToId(from.id);
     setFromId(a.id);
   };
-  const canFlip = SWAPPABLE.some((a) => a.id === to.id);
+  const canFlip = givable.some((a) => a.id === to.id);
   const flip = () => {
     if (!canFlip) return;
     setError('');
@@ -185,6 +194,7 @@ export function Swap({
     if (to.net !== from.net) {
       const units = all ? null : parseUnits(amount, from.decimals);
       if (!all && (units === null || units <= 0n)) return setError(s.badAmount);
+      if (from.kind === 'trc20' && units !== null && units < CROSS.tronSwapMin) return setError(t.bridge.errTronMin.replace('{min}', formatUnits(CROSS.tronSwapMin, 6, 0)));
       if (!prices) return setError(t.bridge.errPrice);
       return setBridge({ order: { from, to, units } });
     }
@@ -472,7 +482,7 @@ export function Swap({
   );
   const list =
     picking === 'from' ? (
-      <CoinList groups={[{ title: '', list: SWAPPABLE }]} chosen={from.id} balances={balances} onPick={(a) => pick('from', a)} />
+      <CoinList groups={[{ title: '', list: givable }]} chosen={from.id} balances={balances} onPick={(a) => pick('from', a)} />
     ) : picking === 'to' ? (
       <CoinList
         groups={[

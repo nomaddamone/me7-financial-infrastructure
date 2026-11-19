@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_KDF,
   entropyToPhrase,
   findKeyBlob,
   generateEntropy,
@@ -21,15 +20,14 @@ describe('key blob', () => {
   it('round-trips the secret with the right password', async () => {
     const secret = generateEntropy(256);
     const blob = await sealSecret(secret, 'correct horse', FAST);
-    expect(blob).toHaveLength(90);
-    expect(await openSecret(blob, 'correct horse')).toEqual(secret);
+    expect(blob).toHaveLength(76);
+    expect(await openSecret(blob, 'correct horse', FAST)).toEqual(secret);
   });
 
   it('works with the production parameters and reports progress', async () => {
     const secret = generateEntropy(256);
     const seen: number[] = [];
     const blob = await sealSecret(secret, 'пароль-с-юникодом ✓', { onProgress: (f) => seen.push(f) });
-    expect(new DataView(blob.buffer).getUint32(8)).toBe(DEFAULT_KDF.m);
     expect(seen.length).toBeGreaterThan(10);
     expect(Math.max(...seen)).toBeLessThanOrEqual(1);
     expect(await openSecret(blob, 'пароль-с-юникодом ✓')).toEqual(secret);
@@ -38,14 +36,14 @@ describe('key blob', () => {
 
   it('rejects a wrong password', async () => {
     const blob = await sealSecret(generateEntropy(256), 'right', FAST);
-    expect(code(await openSecret(blob, 'wrong').catch((e: unknown) => e))).toBe('wrong-password');
-    expect(code(await openSecret(blob, 'Right').catch((e: unknown) => e))).toBe('wrong-password');
+    expect(code(await openSecret(blob, 'wrong', FAST).catch((e: unknown) => e))).toBe('wrong-password');
+    expect(code(await openSecret(blob, 'Right', FAST).catch((e: unknown) => e))).toBe('wrong-password');
   });
 
   it('treats Unicode-equivalent passwords as the same password', async () => {
     const secret = generateEntropy(256);
     const blob = await sealSecret(secret, 'café', FAST);
-    expect(await openSecret(blob, 'café')).toEqual(secret);
+    expect(await openSecret(blob, 'café', FAST)).toEqual(secret);
   });
 
   it('never produces the same blob twice', async () => {
@@ -55,31 +53,33 @@ describe('key blob', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('detects any flipped bit, in the header or in the ciphertext', async () => {
-    const blob = await sealSecret(generateEntropy(256), 'pw', FAST);
-    for (const at of [13, 14, 29, 30, 41, 42, 60, 89]) {
-      const bad = new Uint8Array(blob);
-      bad[at]! ^= 1;
-      const result = code(await openSecret(bad, 'pw').catch((e: unknown) => e));
-      expect(['wrong-password', 'unsupported']).toContain(result);
+  it('carries no mark of what it is', async () => {
+    const text = (bytes: Uint8Array) => String.fromCharCode(...bytes);
+    for (let i = 0; i < 8; i++) {
+      const file = packKeyfile(await sealSecret(generateEntropy(256), 'pw', FAST));
+      expect(text(file)).not.toMatch(/ME7|me7|KEY/);
+      // No fixed byte anywhere: the same place differs from one key to the next.
+      const other = packKeyfile(await sealSecret(generateEntropy(256), 'pw', FAST));
+      expect(file.filter((v, at) => v === other[at]).length).toBeLessThan(12);
     }
   });
 
-  it('refuses parameters that would exhaust memory or time', async () => {
+  it('detects any flipped bit, in the salt, the nonce or the ciphertext', async () => {
     const blob = await sealSecret(generateEntropy(256), 'pw', FAST);
-    const huge = new Uint8Array(blob);
-    new DataView(huge.buffer).setUint32(8, 0xffffffff);
-    expect(code(await openSecret(huge, 'pw').catch((e: unknown) => e))).toBe('unsupported');
-    const slow = new Uint8Array(blob);
-    slow[12] = 255;
-    expect(code(await openSecret(slow, 'pw').catch((e: unknown) => e))).toBe('unsupported');
+    for (const at of [0, 15, 16, 27, 28, 60, 75]) {
+      const bad = new Uint8Array(blob);
+      bad[at]! ^= 1;
+      expect(code(await openSecret(bad, 'pw', FAST).catch((e: unknown) => e))).toBe('wrong-password');
+    }
   });
 
-  it('refuses a newer format version and garbage', async () => {
+  it('does not open with other parameters than it was sealed with', async () => {
     const blob = await sealSecret(generateEntropy(256), 'pw', FAST);
-    const newer = new Uint8Array(blob);
-    newer[6] = 2;
-    expect(code(await openSecret(newer, 'pw').catch((e: unknown) => e))).toBe('unsupported');
+    expect(code(await openSecret(blob, 'pw', { kdf: { m: 512, t: 1, p: 1 } }).catch((e: unknown) => e))).toBe('wrong-password');
+  });
+
+  it('refuses bytes of another length', async () => {
+    const blob = await sealSecret(generateEntropy(256), 'pw', FAST);
     expect(code(await openSecret(new Uint8Array(90), 'pw').catch((e: unknown) => e))).toBe('not-a-keyfile');
     expect(code(await openSecret(blob.subarray(1), 'pw').catch((e: unknown) => e))).toBe('not-a-keyfile');
   });
@@ -96,16 +96,17 @@ describe('key file container', () => {
   it('stands alone', async () => {
     const secret = generateEntropy(256);
     const file = packKeyfile(await sealSecret(secret, 'pw', FAST));
-    expect(file).toHaveLength(90 + 13);
+    expect(file).toHaveLength(76);
     expect(hasKeyBlob(file)).toBe(true);
-    expect(await openSecret(findKeyBlob(file), 'pw')).toEqual(secret);
+    expect(await openSecret(findKeyBlob(file), 'pw', FAST)).toEqual(secret);
   });
 
   it('hides inside a carrier file without changing the carrier bytes', async () => {
     const secret = generateEntropy(256);
     const file = packKeyfile(await sealSecret(secret, 'pw', FAST), jpeg);
+    expect(file).toHaveLength(jpeg.length + 76);
     expect(file.subarray(0, jpeg.length)).toEqual(jpeg);
-    expect(await openSecret(findKeyBlob(file), 'pw')).toEqual(secret);
+    expect(await openSecret(findKeyBlob(file), 'pw', FAST)).toEqual(secret);
   });
 
   it('works on a view into a larger buffer', async () => {
@@ -113,26 +114,69 @@ describe('key file container', () => {
     const file = packKeyfile(await sealSecret(secret, 'pw', FAST), jpeg);
     const padded = new Uint8Array(file.length + 20);
     padded.set(file, 7);
-    expect(await openSecret(findKeyBlob(padded.subarray(7, 7 + file.length)), 'pw')).toEqual(secret);
+    expect(await openSecret(findKeyBlob(padded.subarray(7, 7 + file.length)), 'pw', FAST)).toEqual(secret);
   });
 
-  it('finds no key in ordinary files or in a re-encoded copy', async () => {
-    const file = packKeyfile(await sealSecret(generateEntropy(256), 'pw', FAST), jpeg);
+  it('cannot tell a file without a key from a wrong password', async () => {
+    const photo = new Uint8Array(4000).map((_, i) => (i * 37) & 0xff);
+    const file = packKeyfile(await sealSecret(generateEntropy(256), 'pw', FAST), photo);
+    // A file too short to hold a key is the only one known to hold none.
     expect(hasKeyBlob(jpeg)).toBe(false);
     expect(hasKeyBlob(new Uint8Array(0))).toBe(false);
-    // A messenger that recompresses the photo drops everything after the image data.
-    expect(hasKeyBlob(file.subarray(0, jpeg.length))).toBe(false);
-    // Truncation or a damaged trailer must not be mistaken for a key.
-    expect(hasKeyBlob(file.subarray(0, file.length - 1))).toBe(false);
-    const bad = new Uint8Array(file);
-    new DataView(bad.buffer).setUint32(bad.length - 13, 5000);
-    expect(hasKeyBlob(bad)).toBe(false);
     expect(() => findKeyBlob(jpeg)).toThrow(KeyfileError);
+    // A messenger that recompresses the photo drops what follows the image: the password then fails, as on any other file.
+    const stripped = file.subarray(0, photo.length);
+    expect(hasKeyBlob(stripped)).toBe(true);
+    expect(code(await openSecret(findKeyBlob(stripped), 'pw', FAST).catch((e: unknown) => e))).toBe('wrong-password');
+    expect(code(await openSecret(findKeyBlob(file.subarray(0, file.length - 1)), 'pw', FAST).catch((e: unknown) => e))).toBe('wrong-password');
   });
 
   it('refuses an oversized carrier', async () => {
     const blob = await sealSecret(generateEntropy(256), 'pw', FAST);
     expect(() => packKeyfile(blob, new Uint8Array(MAX_CARRIER_BYTES + 1))).toThrow(/too large/);
+    expect(() => packKeyfile(new Uint8Array(90))).toThrow(KeyfileError);
+  });
+});
+
+describe('a key file of the first format', () => {
+  // Made by the wallet before the format lost its marks: a four-byte picture, then the key of bytes 1..32 under 'old password'.
+  const old = Uint8Array.from(
+    (
+      'ffd8ffd94d45374b45590101000001000101766e71a695ec4126921254745868c043e13a955504d99dafc28f73e5cac30f83d5bce267e2de27965f2435fd961aaaf47b0e816476f724a46b5d93300afbffcb861b74efd4a3c543bdba680f0000005a4d45374b4559454e44'.match(
+        /../g,
+      ) ?? []
+    ).map((pair) => parseInt(pair, 16)),
+  );
+  const secret = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
+
+  it('still opens', async () => {
+    expect(hasKeyBlob(old)).toBe(true);
+    const blob = findKeyBlob(old);
+    expect(blob).toHaveLength(90);
+    expect(await openSecret(blob, 'old password')).toEqual(secret);
+    expect(code(await openSecret(blob, 'other').catch((e: unknown) => e))).toBe('wrong-password');
+  });
+
+  it('is found under a new key saved over it, and the new one opens', async () => {
+    const fresh = generateEntropy(256);
+    const file = packKeyfile(await sealSecret(fresh, 'pw', FAST), old);
+    expect(await openSecret(findKeyBlob(file), 'pw', FAST)).toEqual(fresh);
+  });
+
+  it('refuses parameters that would exhaust memory or time, a newer version and a damaged header', async () => {
+    const blob = findKeyBlob(old);
+    const huge = new Uint8Array(blob);
+    new DataView(huge.buffer).setUint32(8, 0xffffffff);
+    expect(code(await openSecret(huge, 'old password').catch((e: unknown) => e))).toBe('unsupported');
+    const slow = new Uint8Array(blob);
+    slow[12] = 255;
+    expect(code(await openSecret(slow, 'old password').catch((e: unknown) => e))).toBe('unsupported');
+    const newer = new Uint8Array(blob);
+    newer[6] = 2;
+    expect(code(await openSecret(newer, 'old password').catch((e: unknown) => e))).toBe('unsupported');
+    const bent = new Uint8Array(blob);
+    bent[20]! ^= 1;
+    expect(code(await openSecret(bent, 'old password').catch((e: unknown) => e))).toBe('wrong-password');
   });
 });
 

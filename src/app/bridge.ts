@@ -1,18 +1,21 @@
 import { crossAssetName, swapFloor, type SwapOrder, type SwapQuote } from '../core/cross.ts';
 import { buildEthGasPair } from '../core/ethgas.ts';
 import { planFromPockets } from '../core/rotation.ts';
+import { buildTrc20Transfer, signTronTransaction, tronAddressFromBytes, tronRef } from '../core/tron.ts';
 import { signEvmTransaction } from '../core/tx-evm.ts';
 import { erc20TransferData } from '../core/erc20.ts';
 import { fetchEvmBalance, formatUnits } from '../net/balances.ts';
 import { fetchCrossSwapQuote, tellCrossDeposit } from '../net/cross.ts';
-import { CROSS, ETH_GASLESS, NET, SWAP_FEE } from '../net/endpoints.ts';
-import { fetchEthGasTerms, fetchRelayPricing, relayEthSend } from '../net/relay.ts';
+import { CROSS, ETH_GASLESS, NET, SWAP_FEE, TRON_GASLESS } from '../net/endpoints.ts';
+import { fetchEthGasTerms, fetchRelayPricing, fetchTronQuote, RelayError, relayEthSend, relayTronSend } from '../net/relay.ts';
+import { fetchTrc20Balance, fetchTronBlock } from '../net/tron.ts';
 import { fetchErc20Balance, fetchEvmFees, type UsdPrices } from '../net/send.ts';
 import { loadRotation } from './addresses.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, type AssetDef } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { announcePlan, sendPlan } from './home.tsx';
-import { withEvmKey, type Wallet } from './wallet.ts';
+import { markTold, quarantineOf } from './quarantine.ts';
+import { withEvmKey, withTronKey, type Wallet } from './wallet.ts';
 
 /**
  * Swapping a coin for a coin on another network, through the crossing service (NEAR Intents).
@@ -73,12 +76,20 @@ function worth(units: bigint, from: AssetDef, to: AssetDef, prices: UsdPrices): 
 /**
  * How what is given leaves the wallet. USDC on Base, and USDT and USDC on Ethereum, always go through
  * me7's own service on that network: it pays the gas, and its fee, taken in the coin given, is what me7
- * earns on the swap. Any other coin leaves the main address by an ordinary transfer the wallet pays the gas for.
+ * earns on the swap. USDT on Tron goes the same way through me7's service on Tron, which rents the energy.
+ * Any other coin leaves the main address by an ordinary transfer the wallet pays the gas for.
  */
-export type BridgeWay = 'base' | 'eth' | 'own';
+export type BridgeWay = 'base' | 'eth' | 'tron' | 'own';
+
+/** Whether this wallet can give USDT on Tron for a coin on another network: the main networks, and a session that holds the key. */
+export const givesTron = (wallet: Wallet): boolean => NET.mode === 'mainnet' && wallet.seed instanceof Uint8Array && wallet.seed.length === 64;
+const isTronUsdt = (a: AssetDef): boolean => a.kind === 'trc20' && a.contract === NET.tron.usdt;
+/** The coins on Tron that can be given in a swap between networks. */
+export const TRON_GIVABLE: readonly AssetDef[] = NET.mode === 'mainnet' ? ASSETS.filter(isTronUsdt) : [];
 export function bridgeWay(wallet: Wallet, from: AssetDef): BridgeWay {
   const keyed = wallet.seed instanceof Uint8Array && wallet.seed.length === 64;
   if (keyed && NET.base && from.contract === NET.base.usdc) return 'base';
+  if (isTronUsdt(from) && givesTron(wallet)) return 'tron';
   if (keyed && NET.mode === 'mainnet' && from.kind === 'erc20' && from.chain !== 'base' && !!from.contract && from.contract.toLowerCase() in ETH_GASLESS.tokens) return 'eth';
   return 'own';
 }
@@ -100,9 +111,17 @@ export interface BridgePlan {
 /** An address that stands in for the service's, which is not known until the swap is ordered: only its place in a plan matters. */
 const STAND_IN = '0x000000000000000000000000000000000000dEaD';
 
-/** Where a refund returns to. USDC on Base goes back to the address shown for receiving, as any payment to the wallet would; the rest to the main address. */
+/** Where a refund returns to. USDC on Base goes back to the address shown for receiving, as any payment to the wallet would; the rest to the main address on the coin's network. */
 async function refundAddress(wallet: Wallet, way: BridgeWay): Promise<string> {
-  return way === 'base' ? (await loadRotation(wallet)).receive.address : wallet.evm;
+  return way === 'base' ? (await loadRotation(wallet)).receive.address : way === 'tron' ? wallet.tron : wallet.evm;
+}
+
+/** A Tron address nobody holds, standing in for the service's: paying to an address that never held USDT costs the most, so the fee asked ahead is not below the real one. */
+function tronStandIn(): string {
+  const raw = new Uint8Array(21);
+  crypto.getRandomValues(raw);
+  raw[0] = 0x41;
+  return tronAddressFromBytes(raw);
 }
 
 const order = (wallet: Wallet, from: AssetDef, to: AssetDef, amountIn: bigint, deadline: number, refundTo: string): SwapOrder => ({
@@ -157,6 +176,18 @@ export async function planBridge(wallet: Wallet, from: AssetDef, to: AssetDef, u
     if (amountIn <= 0n || amountIn + terms.fee > held) throw new Error('no-funds');
     return priced(amountIn, terms.fee);
   }
+  if (way === 'tron') {
+    // An address in quarantine is not served by me7's service, and this swap goes through it.
+    if (quarantineOf(wallet, 'tron', wallet.tron)) throw new RelayError('held');
+    const held = await fetchTrc20Balance(NET.tron.nodes, from.contract ?? '', wallet.tron);
+    if (held <= 0n) throw new Error('no-funds');
+    const fee = (await fetchTronQuote(wallet.tron, tronStandIn(), units ?? held)).fee;
+    const amountIn = units ?? held - fee;
+    if (amountIn <= 0n || amountIn + fee > held) throw new Error('no-funds');
+    if (amountIn < CROSS.tronSwapMin) throw new Error('tron-min');
+    return priced(amountIn, fee);
+  }
+  if (from.kind !== 'eth' && from.kind !== 'erc20') throw new Error('no-funds');
   const chain = evmOf(from);
   const native = from.kind === 'eth';
   const [coin, fees] = await Promise.all([fetchEvmBalance(chain.rpc, wallet.evm).then((r) => r.value), fetchEvmFees(chain.rpc)]);
@@ -171,7 +202,7 @@ export async function planBridge(wallet: Wallet, from: AssetDef, to: AssetDef, u
 
 /** What an amount would buy on another network, for the form to show while it is typed. Binds nobody and checks no balance. */
 export async function estimateBridge(wallet: Wallet, from: AssetDef, to: AssetDef, amountIn: bigint): Promise<bigint> {
-  return (await fetchCrossSwapQuote(CROSS.api, order(wallet, from, to, amountIn, Date.now() + CROSS.lifetime, wallet.evm), true, 0n)).amountOut;
+  return (await fetchCrossSwapQuote(CROSS.api, order(wallet, from, to, amountIn, Date.now() + CROSS.lifetime, ownAddress(wallet, from)), true, 0n)).amountOut;
 }
 
 const storeKey = (wallet: Wallet) => `me7.bridge.${NET.mode}.${wallet.evm.toLowerCase()}`;
@@ -247,6 +278,23 @@ async function sendDeposit(wallet: Wallet, plan: BridgePlan, deposit: string): P
     if (terms.fee > plan.fee + plan.fee / 10n) throw new Error('moved');
     const pair = buildEthGasPair(NET.evm.chainId, token, deposit, plan.amountIn, terms);
     return withEvmKey(wallet, (key) => relayEthSend(signEvmTransaction(pair.fee, key).raw, signEvmTransaction(pair.main, key).raw));
+  }
+  if (plan.way === 'tron') {
+    const contract = plan.from.contract ?? '';
+    const terms = await fetchTronQuote(wallet.tron, deposit, plan.amountIn);
+    // me7's fee is what was shown, or less: a dearer one is asked about again.
+    if (terms.fee > plan.fee + plan.fee / 10n) throw new Error('moved');
+    const block = await fetchTronBlock(NET.tron.nodes);
+    // The service needs time to rent the energy before it sends them, so they stay good for ten minutes, not one.
+    const ref = { ...tronRef(block, Date.now()), expiration: block.timestamp + TRON_GASLESS.lifetime };
+    const main = buildTrc20Transfer(wallet.tron, contract, deposit, plan.amountIn, ref, TRON_GASLESS.feeLimit);
+    const fee = buildTrc20Transfer(wallet.tron, contract, terms.receiver, terms.fee, ref, TRON_GASLESS.feeLimit);
+    try {
+      return await withTronKey(wallet, (key) => relayTronSend(signTronTransaction(main, key).signedHex, signTronTransaction(fee, key).signedHex));
+    } catch (err) {
+      if (err instanceof RelayError && err.code === 'held') markTold(wallet, 'tron', wallet.tron);
+      throw err;
+    }
   }
   const chain = evmOf(plan.from);
   const receipt = plan.from.kind === 'eth' ? await sendEvmCall(chain, wallet, deposit, new Uint8Array(0), plan.amountIn) : await sendEvmCall(chain, wallet, plan.from.contract ?? '', erc20TransferData(deposit, plan.amountIn));

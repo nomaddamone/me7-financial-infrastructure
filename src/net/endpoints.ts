@@ -349,6 +349,8 @@ export const CROSS = {
   /** What a swap may lose against outside prices before it is refused: three percent, and three dollars for the networks' own costs. */
   swapLossBps: 300n,
   swapFlatUsd: 3,
+  /** The least USDT on Tron worth swapping for a coin on another network: the crossing service takes nothing under a hundred dollars from Tron, and a hundred USDT is a few cents short of that. */
+  tronSwapMin: 101_000_000n,
 } as const;
 
 /** Tron addresses under sanctions, one per line: the list the Tron side of the service refuses to serve. */

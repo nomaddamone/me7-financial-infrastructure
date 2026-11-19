@@ -9,6 +9,8 @@
  * where a refund goes, which coins, how much), and that the price asked is not absurd. After
  * that the wallet believes only what it reads from Tron itself.
  */
+import { isValidTronAddress } from './tron.ts';
+
 export interface CrossOrder {
   /** The service's names for the coin given and the coin wanted. */
   origin: string;
@@ -27,6 +29,12 @@ export interface CrossOrder {
 export interface CrossQuote {
   /** How much of the given coin the service wants, in its units. */
   amountIn: bigint;
+  /**
+   * The least of it the service expects to use. An exact order is priced with room for the price to move:
+   * `amountIn` is the most it may take, and what it did not need it sends back to the refund address.
+   * Equal to `amountIn` when the service names no lower figure.
+   */
+  leastIn: bigint;
   /** Where to send it. Absent in a quote asked only to see the price. */
   depositAddress: string | null;
   /** The service's own guess of how long the crossing takes, in seconds. */
@@ -92,11 +100,14 @@ export function readCrossQuote(answer: unknown, order: CrossOrder, dry: boolean,
   if (amountOut !== order.amountOut || least !== order.amountOut) throw new Error('not the amount ordered');
   if (amountIn > crossMaxIn(order.amountOut, limits)) throw new Error('too dear');
   const seconds = typeof q.timeEstimate === 'number' && q.timeEstimate > 0 && q.timeEstimate < 86_400 ? Math.round(q.timeEstimate) : 120;
-  if (dry) return { amountIn, depositAddress: null, seconds };
+  // Only shown, never paid by: a figure that makes no sense is read as no room at all.
+  const named = digits(q.minAmountIn);
+  const leastIn = named !== null && named > 0n && named <= amountIn ? named : amountIn;
+  if (dry) return { amountIn, leastIn, depositAddress: null, seconds };
   // A memo would mean the money is told apart by more than its address: this wallet's transfer carries none.
   if (typeof q.depositAddress !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(q.depositAddress) || q.depositMemo) throw new Error('no deposit address');
   if (q.depositAddress.toLowerCase() === order.refundTo.toLowerCase()) throw new Error('no deposit address');
-  return { amountIn, depositAddress: q.depositAddress, seconds };
+  return { amountIn, leastIn, depositAddress: q.depositAddress, seconds };
 }
 
 /** Where a crossing stands, as the service tells it. The wallet acts on 'refunded' and 'failed' only; arrival it reads from Tron itself. */
@@ -204,7 +215,7 @@ export function crossSwapRequest(order: SwapOrder, dry: boolean): Record<string,
 /**
  * Read the answer to a swap order. Throws unless it answers exactly this order, takes exactly the
  * amount given, and binds itself to no less than `floor`. A real (not dry) order must name an
- * address to pay to, on an EVM network, with no memo.
+ * address to pay to, with no memo: an EVM address, or a Tron one when what is given is on Tron.
  */
 export function readCrossSwapQuote(answer: unknown, order: SwapOrder, dry: boolean, floor: bigint): SwapQuote {
   const a = (typeof answer === 'object' && answer !== null ? answer : {}) as { quote?: Record<string, unknown>; quoteRequest?: Record<string, unknown> };
@@ -231,7 +242,9 @@ export function readCrossSwapQuote(answer: unknown, order: SwapOrder, dry: boole
   if (minOut < floor) throw new Error('too dear');
   const seconds = typeof q.timeEstimate === 'number' && q.timeEstimate > 0 && q.timeEstimate < 86_400 ? Math.round(q.timeEstimate) : 120;
   if (dry) return { amountOut, minOut, depositAddress: null, seconds };
-  if (typeof q.depositAddress !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(q.depositAddress) || q.depositMemo) throw new Error('no deposit address');
+  if (typeof q.depositAddress !== 'string' || q.depositMemo) throw new Error('no deposit address');
+  const onTron = order.origin.startsWith('nep141:tron');
+  if (onTron ? !isValidTronAddress(q.depositAddress) : !/^0x[0-9a-fA-F]{40}$/.test(q.depositAddress)) throw new Error('no deposit address');
   if (q.depositAddress.toLowerCase() === order.refundTo.toLowerCase() || q.depositAddress.toLowerCase() === order.recipient.toLowerCase()) throw new Error('no deposit address');
   return { amountOut, minOut, depositAddress: q.depositAddress, seconds };
 }

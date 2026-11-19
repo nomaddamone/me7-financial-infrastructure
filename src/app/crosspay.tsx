@@ -80,6 +80,8 @@ interface Reviewed {
   order: CrossOrder;
   /** What each part costs: the USDC the crossing takes, me7's fee on Base, the estimate of me7's fee on Tron. */
   usdcIn: bigint;
+  /** The least of `usdcIn` the crossing service expects to use; the rest is room it sends back if unused. */
+  leastIn: bigint;
   feeBase: bigint;
   feeTron: bigint;
   from: Pocket | 'both';
@@ -194,7 +196,7 @@ export function CrossPay({
       const order: CrossOrder = { origin: CROSS.origin, destination: rail.destination, recipient: fresh.address, refundTo, amountOut: budget, slippageBps: CROSS.slippageBps, deadline: Date.now() + CROSS.lifetime };
       const quote = await fetchCrossQuote(CROSS.api, order, true, CROSS);
       const usdc = await planUsdc(NOWHERE, quote.amountIn, mixOk === mixKey);
-      setReviewed({ to: recipient, amount: units, fresh, order, usdcIn: quote.amountIn, feeBase: usdc.plan.fee, feeTron, from: usdc.from, joined: usdc.joined, seconds: quote.seconds });
+      setReviewed({ to: recipient, amount: units, fresh, order, usdcIn: quote.amountIn, leastIn: quote.leastIn, feeBase: usdc.plan.fee, feeTron, from: usdc.from, joined: usdc.joined, seconds: quote.seconds });
       setConfirm('');
       setStep('review');
     } catch (err) {
@@ -224,7 +226,7 @@ export function CrossPay({
       if (!quote?.depositAddress) throw new Error(x.unavailable);
       // The price is the one that was shown, give or take a third of a percent; a dearer one is shown again first.
       if (quote.amountIn > reviewed.usdcIn + reviewed.usdcIn / 300n) {
-        setReviewed({ ...reviewed, order, usdcIn: quote.amountIn });
+        setReviewed({ ...reviewed, order, usdcIn: quote.amountIn, leastIn: quote.leastIn });
         throw new Error(x.priceMoved.replace('{sum}', money(quote.amountIn)));
       }
       const usdc = await planUsdc(quote.depositAddress, quote.amountIn, reviewed.from === 'both').catch((err: unknown) => {
@@ -417,7 +419,11 @@ export function CrossPay({
   }
 
   if (step === 'review' && reviewed) {
+    // What the service asks over what it delivers is the most the crossing can cost; the least is by its own lower figure.
     const over = reviewed.usdcIn - reviewed.order.amountOut;
+    const most = over > 0n ? over : 0n;
+    const least = reviewed.leastIn > reviewed.order.amountOut ? reviewed.leastIn - reviewed.order.amountOut : 0n;
+    const room = reviewed.usdcIn - reviewed.leastIn;
     return (
       <section class="panel">
         <h2 class="title">{t.reviewTitle}</h2>
@@ -439,12 +445,13 @@ export function CrossPay({
           <dt>{x.feeBase}</dt>
           <dd>{money(reviewed.feeBase)} usdc</dd>
           <dt>{x.feeCross}</dt>
-          <dd>{money(over > 0n ? over : 0n)} usdc</dd>
+          <dd>{room > 0n ? x.feeRange.replace('{from}', money(least)).replace('{to}', money(most)) : money(most)} usdc</dd>
           <dt>{x.feeTron}</dt>
           <dd>
             {money(reviewed.order.amountOut - reviewed.amount)} {coin} <span class="dim">{x.estimate}</span>
           </dd>
         </dl>
+        {room > 0n && <p class="note">{x.roomNote.replace('{sum}', money(room))}</p>}
         <p class="alert">{x.trust}</p>
         {reviewed.from === 'both' && <p class="alert">{t.pockets.reviewMix}</p>}
         {reviewed.from !== 'both' && reviewed.joined > 0 && <p class="note">{t.pockets.reviewJoined.replace('{n}', String(reviewed.joined))}</p>}
