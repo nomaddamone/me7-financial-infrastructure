@@ -1,6 +1,7 @@
 import type { GaslessPricing, GaslessRequest, SignedAuthorization } from '../core/gasless.ts';
 import { readEthGasTerms, type EthGasTerms } from '../core/ethgas.ts';
-import { CROSS, ETH_GASLESS, GASLESS, TRON_GASLESS } from './endpoints.ts';
+import { CROSS, ETH_GASLESS, GASLESS, NET, TRON_GASLESS } from './endpoints.ts';
+import { fetchEvmNonce } from './send.ts';
 
 /** Why the relay did not take an operation; the codes are the relay's own (see server/relay-core.ts). */
 export class RelayError extends Error {
@@ -128,11 +129,18 @@ export async function fetchEthGasTerms(from: string, token: string, to: string, 
   const query = new URLSearchParams({ from, token, to, amount: amount.toString(), ...(ahead ? { ahead: '1' } : {}) });
   const answer = (await ask(`/eth/quote?${query}`)) as { ok?: unknown; error?: unknown } | null;
   if (answer?.ok !== true) throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down');
+  let terms: EthGasTerms;
   try {
-    return readEthGasTerms(answer, { service: ETH_GASLESS.service, maxFee: ETH_GASLESS.maxFee, receiver: GASLESS.receiver, maxGasPrice: ETH_GASLESS.maxGasPrice, maxGas: ETH_GASLESS.maxGas });
+    terms = readEthGasTerms(answer, { service: ETH_GASLESS.service, maxFee: ETH_GASLESS.maxFee, receiver: GASLESS.receiver, maxGasPrice: ETH_GASLESS.maxGasPrice, maxGas: ETH_GASLESS.maxGas });
   } catch {
     throw new RelayError('down');
   }
+  // The transfers are signed with the number the service names. It must be the address's next one by the wallet's
+  // own reading of the chain: a later number would leave signed transfers lying about, to go through some other day.
+  const mine = await fetchEvmNonce(NET.evm.rpc, from).catch(() => null);
+  if (mine === null) throw new RelayError('down');
+  if (mine !== terms.nonce) throw new RelayError('pending');
+  return terms;
 }
 
 export async function relayEthSend(fee: string, main: string): Promise<string> {

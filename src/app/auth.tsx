@@ -5,6 +5,7 @@ import {
   generateEntropy,
   hasKeyBlob,
   isValidMnemonic,
+  isGuessablePassword,
   KeyfileError,
   MAX_CARRIER_BYTES,
   normalizeMnemonic,
@@ -147,7 +148,8 @@ function PasswordStep({
   const level = strength(pw);
   const short = pw.length > 0 && pw.length < 8;
   const mismatch = again.length > 0 && pw !== again;
-  const ok = pw.length >= 8 && pw === again;
+  const weak = pw.length >= 8 && isGuessablePassword(pw);
+  const ok = pw.length >= 8 && !weak && pw === again;
   return (
     <form
       class="panel"
@@ -185,7 +187,7 @@ function PasswordStep({
       </label>
       <p class="status" aria-live="polite">
         <span>{pw.length > 0 ? t.pwLevels[level] : ''}</span>
-        {short ? <span class="bad">{t.pwShort}</span> : mismatch ? <span class="bad">{t.pwMismatch}</span> : null}
+        {short ? <span class="bad">{t.pwShort}</span> : weak ? <span class="bad">{t.pwWeak}</span> : mismatch ? <span class="bad">{t.pwMismatch}</span> : null}
       </p>
       <div class="row">
         <button type="button" class="btn" onClick={onBack}>

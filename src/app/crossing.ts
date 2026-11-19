@@ -236,8 +236,8 @@ export interface OneTime {
 }
 
 /** How many untouched addresses in a row end the search. Numbers are handed out one after another, so gaps are small. */
-const GAP = 3;
-const MOST = 40;
+const GAP = 8;
+const MOST = 80;
 const found = new Map<string, { at: number; run: Promise<OneTime[]> }>();
 
 /**

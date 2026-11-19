@@ -85,8 +85,8 @@ describe("the wallet's one-time Tron addresses", () => {
     const other = { ...openWallet(MNEMONIC), evm: '0x1111111111111111111111111111111111111111' };
     const list = await oneTimeAddresses(other);
     expect(list.map((o) => [o.index, o.held, o.crossing])).toEqual([[4, 9_000_000n, null], [2, 0n, null], [1, 265_063n, null]]);
-    // The search stops three untouched numbers after the last used one, and the main address is never part of it.
-    expect(asked).toEqual([1, 2, 3, 4, 5, 6, 7].map(at));
+    // The search stops eight untouched numbers after the last used one, and the main address is never part of it.
+    expect(asked).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(at));
     // The next crossing will not be given a number that is already used.
     expect(JSON.parse(data.get(`me7.cross.mainnet.${other.evm}`)!).next).toBe(5);
   });

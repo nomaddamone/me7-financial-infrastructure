@@ -78,11 +78,13 @@ import type { Dict } from './i18n.ts';
 import { CoinIcon } from './icons.tsx';
 import { Peer } from './peer.tsx';
 import { Swap, SWAPPABLE } from './swap.tsx';
-import { loadHistory, paidAddresses, portfolioSeries, rememberPaid, type History, type HistoryPoint } from './portfolio.ts';
+import { loadHistory, paidAddresses, portfolioSeries, rememberPaid, seenAddresses, type History, type HistoryPoint } from './portfolio.ts';
 import { lookalikeOf } from '../core/lookalike.ts';
 import { STEALTH_INDEX } from './stealth.ts';
 import { parseStealthCode, stealthAddressFor, stealthCode, stealthKeys, stealthMetaAddress, tokenMetadata } from '../core/stealth.ts';
 import { GASLESS_MAX_NOTES, type GaslessRequest, type StealthNote } from '../core/gasless.ts';
+import { isGuessablePassword } from '../core/keyfile.ts';
+import { hush } from './quiet.ts';
 import { closeWallet, isSessionPassword, openWallet, withBitcoinKey, withEvmKey, withTronKey, type Wallet } from './wallet.ts';
 import './home.css';
 
@@ -104,13 +106,18 @@ const isRotated = (a: AssetDef | undefined): boolean => !!a && a.chain === 'base
 const randomNonce = () => hexOf(crypto.getRandomValues(new Uint8Array(32)));
 const shortAddress = (value: string) => `${value.slice(0, 8)}…${value.slice(-6)}`;
 /** The addresses this wallet knows: its contacts and those it has paid to. A look-alike is told from these. */
-function knownAddresses(wallet: Wallet): { address: string; name?: string }[] {
+function knownAddresses(wallet: Wallet): { address: string; name?: string; seen?: true }[] {
   const contacts = loadContacts(wallet.evm).map((c) => ({ address: c.address, name: c.name }));
-  return [...contacts, ...paidAddresses(wallet).map((address) => ({ address }))];
+  // What the history services report is compared with, but never trusted: `seen` marks it.
+  return [...contacts, ...paidAddresses(wallet).map((address) => ({ address })), ...seenAddresses(wallet).map((address) => ({ address, seen: true as const }))];
 }
 /** The known address this one imitates, as the user would recognise it: the contact's name, or the address shortened. */
-function twinOf(address: string, known: readonly { address: string; name?: string }[]): string | null {
-  const twin = lookalikeOf(address, known.map((k) => k.address));
+function twinOf(address: string, known: readonly { address: string; name?: string; seen?: true }[]): string | null {
+  const same = (a: string) => a === address || (address.startsWith('0x') && a.toLowerCase() === address.toLowerCase());
+  // An address is familiar only if the user wrote it down or paid to it from here. One that merely appears in the
+  // history is no proof: it is left out of the comparison with itself, and the rest of the list still speaks.
+  const trusted = known.filter((k) => !k.seen).map((k) => k.address);
+  const twin = trusted.some(same) ? null : lookalikeOf(address, [...trusted, ...known.filter((k) => k.seen && !same(k.address)).map((k) => k.address)]);
   if (!twin) return null;
   const name = known.find((k) => k.address === twin)?.name;
   return name ? `«${name}» (${shortAddress(twin)})` : shortAddress(twin);
@@ -169,15 +176,40 @@ export function signPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[
   return { chain: 'base', transfers, fee, ...(notes && notes.length > 0 ? { notes } : {}), ...(cross ? { cross: true } : {}) };
 }
 
+/**
+ * What was signed for a payment whose answer never came. When the service cannot be heard (the connection dropped,
+ * the answer was lost), nobody knows whether it took the payment. Signing again would make a second payment beside
+ * the first; sending the very same signatures cannot: the service carries them once. So they are kept until the
+ * service gives a definite answer, or until they expire.
+ */
+const signedOnce = new Map<string, { until: number; value: unknown }>();
+function signOnce<T>(key: string, lifeMs: number, sign: () => T): T {
+  const kept = signedOnce.get(key);
+  if (kept && kept.until > Date.now()) return kept.value as T;
+  const value = sign();
+  signedOnce.set(key, { until: Date.now() + lifeMs, value });
+  return value;
+}
+/** A definite answer, good or bad, ends the keeping; silence does not. */
+const heard = (key: string, err?: unknown) => {
+  if (!(err instanceof RelayError) || err.code !== 'down') signedOnce.delete(key);
+};
+
 /** Sign a plan's permissions and hand them to the relay. Returns the transaction hash. */
 export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: StealthNote[], cross = false): Promise<string> {
-  const request = signPlan(wallet, plan, notes, cross);
+  const key = `base:${JSON.stringify([plan.sources.map((s) => [s.holding.address, s.value.toString()]), plan.via?.address ?? '', plan.payouts.map((p) => [p.to, p.value.toString()]), plan.fee.toString(), notes?.length ?? 0, cross])}`;
+  // Nine minutes: the permissions themselves are good for ten.
+  const request = signOnce(key, 540_000, () => signPlan(wallet, plan, notes, cross));
   let hash: string;
   try {
     hash = await relaySend(request);
+    heard(key);
   } catch (err) {
+    heard(key, err);
     // The service found one of the addresses in quarantine: the wallet marks it, and the next payment goes round it.
-    if (err instanceof RelayError && err.code === 'held' && err.address) markTold(wallet, 'base', err.address);
+    // Only an address this very payment was to come from can be marked: the service's word is not taken about any other.
+    const named = err instanceof RelayError && err.code === 'held' ? err.address : undefined;
+    if (named && [...plan.sources.map((s) => s.holding.address), plan.via?.address ?? ''].some((a) => a.toLowerCase() === named.toLowerCase())) markTold(wallet, 'base', named);
     throw err;
   }
   // What was just read about the addresses is out of date now.
@@ -188,7 +220,9 @@ export async function sendPlan(wallet: Wallet, plan: PaymentPlan, notes?: Stealt
 export const relayErrorText = (t: Dict, err: unknown): string => {
   const g = t.gasless;
   if (!(err instanceof RelayError)) return `${t.sendFailed} ${err instanceof Error ? err.message : String(err)}`;
-  return err.code === 'held'
+  return err.code === 'duplicate'
+    ? g.errDuplicate
+    : err.code === 'held'
     ? t.held.errService
     : err.code === 'checking'
     ? t.held.errChecking
@@ -654,14 +688,25 @@ async function sendEthless(wallet: Wallet, prepared: Extract<Prepared, { kind: '
 async function sendTronless(wallet: Wallet, prepared: Extract<Prepared, { kind: 'tronless' }>): Promise<string> {
   const contract = prepared.asset.contract;
   if (!contract) throw new Error('no token contract');
-  const block = await fetchTronBlock(NET.tron.nodes);
-  // The service needs time to rent the energy before it sends them, so they stay good for ten minutes, not one.
-  const ref = { ...tronRef(block, Date.now()), expiration: block.timestamp + TRON_GASLESS.lifetime };
-  const main = buildTrc20Transfer(wallet.tron, contract, prepared.to, prepared.amount, ref, TRON_GASLESS.feeLimit);
-  const fee = buildTrc20Transfer(wallet.tron, contract, prepared.receiver, prepared.fee, ref, TRON_GASLESS.feeLimit);
+  const once = `tron:${wallet.tron}:${prepared.to}:${prepared.amount}:${prepared.fee}`;
+  let pair = signedOnce.get(once);
+  if (!pair || pair.until <= Date.now()) {
+    const block = await fetchTronBlock(NET.tron.nodes);
+    // The service needs time to rent the energy before it sends them, so they stay good for ten minutes, not one.
+    const ref = { ...tronRef(block, Date.now()), expiration: block.timestamp + TRON_GASLESS.lifetime };
+    const main = buildTrc20Transfer(wallet.tron, contract, prepared.to, prepared.amount, ref, TRON_GASLESS.feeLimit);
+    const fee = buildTrc20Transfer(wallet.tron, contract, prepared.receiver, prepared.fee, ref, TRON_GASLESS.feeLimit);
+    // Kept while the service is silent, so that a second press sends the same two transfers and not two new ones.
+    pair = { until: Date.now() + TRON_GASLESS.lifetime - 60_000, value: await withTronKey(wallet, (key) => ({ main: signTronTransaction(main, key).signedHex, fee: signTronTransaction(fee, key).signedHex })) };
+    signedOnce.set(once, pair);
+  }
+  const signed = pair.value as { main: string; fee: string };
   try {
-    return await withTronKey(wallet, (key) => relayTronSend(signTronTransaction(main, key).signedHex, signTronTransaction(fee, key).signedHex));
+    const id = await relayTronSend(signed.main, signed.fee);
+    heard(once);
+    return id;
   } catch (err) {
+    heard(once, err);
     if (err instanceof RelayError && err.code === 'held') markTold(wallet, 'tron', wallet.tron);
     throw err;
   }
@@ -2739,6 +2784,7 @@ function Vault({ t, wallet, home }: { t: Dict; wallet: Wallet; home: number }) {
     e.preventDefault();
     if (!picked) return setError(t.vaultNeedFile);
     if (secret.length < 8) return setError(t.vaultShort);
+    if (creating && isGuessablePassword(secret)) return setError(t.pwWeak);
     if (creating && secret !== again) return setError(t.pwMismatch);
     setError('');
     setBusy(true);
@@ -2756,6 +2802,8 @@ function Vault({ t, wallet, home }: { t: Dict; wallet: Wallet; home: number }) {
         }
         const passphrase = await vaultPassphrase(entropy, secret, { onProgress: (f) => onProgress(0.5 + f / 2) });
         const opened = openWallet(phrase, passphrase);
+        // Nothing about a vault's addresses is written to this browser: its notes live in memory until the page goes.
+        hush([opened.evm, opened.tron, opened.btc]);
         current.current = opened;
         setFresh(creating);
         setVault(opened);

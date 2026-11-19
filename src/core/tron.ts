@@ -103,6 +103,9 @@ export interface TronRef {
 /** Anchor a transaction to a recent block; it expires a minute after that block. */
 export function tronRef(block: { id: string; timestamp: number }, now: number): TronRef {
   if (!/^[0-9a-f]{64}$/.test(block.id)) throw new Error('Malformed block id');
+  // The block's time sets how long the transaction stays good. A node that names a time far from this clock's could
+  // keep a transfer alive long after its owner thinks it has lapsed.
+  if (!Number.isFinite(block.timestamp) || Math.abs(block.timestamp - now) > 300_000) throw new Error('The node and this device disagree about the time');
   const id = hexToBytes(block.id);
   return {
     refBlockBytes: id.slice(6, 8),

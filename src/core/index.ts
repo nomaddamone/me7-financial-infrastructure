@@ -11,6 +11,7 @@ export {
   DEFAULT_KDF,
   findKeyBlob,
   hasKeyBlob,
+  isGuessablePassword,
   KeyfileError,
   MAX_CARRIER_BYTES,
   normalizePassword,

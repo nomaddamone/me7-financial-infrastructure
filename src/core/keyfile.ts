@@ -70,6 +70,17 @@ export interface KdfOptions {
   onProgress?: (fraction: number) => void;
 }
 
+/**
+ * A password that falls to the first guesses: digits only, one character repeated, or a word everyone tries.
+ * The key file is made to lie in photos and clouds, where anyone who copies it can guess at leisure; the
+ * stretching makes each guess dear, not a short list of them.
+ */
+const COMMON = new Set(['password', 'password1', 'password123', 'qwertyui', 'qwertyuiop', 'qwerty123', '1q2w3e4r', '1q2w3e4r5t', 'iloveyou', 'abc12345', 'abcd1234', 'asdfghjk', 'zxcvbnm1', 'letmein1', 'welcome1', 'йцукенгш', 'пароль123', 'qazwsxedc']);
+export function isGuessablePassword(password: string): boolean {
+  const p = normalizePassword(password);
+  return /^\d+$/.test(p) || /^(.)\1+$/u.test(p) || COMMON.has(p.toLowerCase());
+}
+
 /** Same password typed with different Unicode forms must give the same key. */
 export function normalizePassword(password: string): string {
   return password.normalize('NFKC');

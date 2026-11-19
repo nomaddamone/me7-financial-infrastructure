@@ -302,7 +302,7 @@ export function ColdSwap({
           <dd>{text(plan.to, plan.quote.minOut)}</dd>
           <dt>{b.arrives}</dt>
           <dd>
-            <code>{short(addressFor(session, plan.to) ?? '')}</code> <span class="dim">{b.yours}</span>
+            <code class="addr-value">{addressFor(session, plan.to) ?? ''}</code> <span class="dim">{b.yours}</span>
           </dd>
           {plan.way === 'own' ? (
             <>
@@ -324,6 +324,7 @@ export function ColdSwap({
         </dl>
         <p class="note">{plan.way === 'own' ? b.reviewNote : b.reviewNoteService}</p>
         {plan.way !== 'own' && <p class="note">{l.twoSigns.replace('{fee}', text(plan.from, plan.fee))}</p>}
+        {isTron(plan.to) !== (session.app === 'Tron') && <p class="note">{l.swapYours}</p>}
         {deposit ? (
           <p class="alert" role="status">
             {l.swapOnDevice} <code class="addr-value">{deposit}</code>

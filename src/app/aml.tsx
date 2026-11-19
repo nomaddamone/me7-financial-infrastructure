@@ -99,7 +99,7 @@ export function AmlCheck({ t, wallet, initial = '', onClose }: { t: Dict; wallet
         setTicket({ ticket: err.ticket, chain: about.chain, address: about.address, until: Date.now() + 86_400_000 });
         setError(a.failed);
       } else {
-        if (err instanceof AmlError && err.code === 'held' && err.address) markTold(wallet, 'base', err.address);
+        if (err instanceof AmlError && err.code === 'held' && err.address && /^0x[0-9a-fA-F]{40}$/.test(err.address) && err.address.toLowerCase() === wallet.evm.toLowerCase()) markTold(wallet, 'base', err.address);
         setError(err instanceof AmlError && err.code === 'bad-ticket' ? a.ticketGone : relayErrorText(t, err));
         if (err instanceof AmlError && err.code === 'bad-ticket') setTicket(null);
       }

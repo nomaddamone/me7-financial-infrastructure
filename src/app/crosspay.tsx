@@ -232,6 +232,11 @@ export function CrossPay({
       const usdc = await planUsdc(quote.depositAddress, quote.amountIn, reviewed.from === 'both').catch((err: unknown) => {
         throw new Error(err instanceof Error && err.message === 'needs-mix' ? t.pockets.mixStop : err instanceof Error ? err.message : x.unavailable);
       });
+      // me7's own fee is what the review showed, or a hair more: a dearer one is shown again first.
+      if (usdc.plan.fee > reviewed.feeBase + reviewed.feeBase / 20n) {
+        setReviewed({ ...reviewed, order, feeBase: usdc.plan.fee });
+        throw new Error(t.bridge.errMoved);
+      }
       written = {
         id: crypto.randomUUID(),
         index: reviewed.fresh.index,

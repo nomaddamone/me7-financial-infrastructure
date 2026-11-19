@@ -14,7 +14,7 @@ import { ASSETS, BASE_L1_RESERVE, evmOf, type AssetDef } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { Spinner } from './fx.tsx';
 import { loadRotation } from './addresses.ts';
-import { bridgeTargets, estimateBridge, givesTron, TRON_GIVABLE } from './bridge.ts';
+import { bridgeTargets, estimateBridge, floorFor, givesTron, TRON_GIVABLE } from './bridge.ts';
 import { Bridge } from './bridge.tsx';
 import type { Dict } from './i18n.ts';
 import { CoinButton, CoinList } from './swapform.tsx';
@@ -215,6 +215,10 @@ export function Swap({
       const feeCeiling = ((route.gas * 3n) / 2n + (native ? 0n : APPROVE_GAS)) * fees.maxFeePerGas + l1;
       if (feeCeiling > (native ? coin - units : coin)) return setError(s.noGas);
       const minOut = (route.amountOut * BigInt(10_000 - SLIPPAGE_BPS - DRIFT_BPS)) / 10_000n;
+      // The quote is the aggregator's own word. It is held against prices from elsewhere: a quote far below what the
+      // coins are worth is refused, whatever the aggregator says the market is.
+      if (!prices) return setError(t.bridge.errPrice);
+      if (minOut < floorFor(from, to, units, prices)) return setError(t.bridge.errDear);
       setQuote({ from, to, amount: units, route, minOut, feeCeiling });
       setConfirm('');
       setView('review');

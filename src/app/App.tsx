@@ -14,7 +14,7 @@ type Screen = 'welcome' | 'register' | 'signin' | 'reissue' | 'home' | 'ledger' 
 
 const LANGS: readonly Lang[] = ['ru', 'en'];
 
-/** The interface language is the only thing stored. Nothing about the account ever is. */
+/** The interface language. Keys and secrets are never stored; notes about an account's addresses are (see the stores under src/app), and none about a vault's (src/app/quiet.ts). */
 function loadLang(): Lang {
   try {
     const v = localStorage.getItem('me7.lang');

@@ -29,6 +29,9 @@ export async function sendEvmCall(
     }
   }
   const [fees, nonce] = await Promise.all([fetchEvmFees(chain.rpc), fetchEvmNonce(chain.rpc, wallet.evm)]);
+  // The price of gas is read again here, after the review. On Base it is a small fraction of a gwei: a node that
+  // names five or more is wrong or lying, and the difference would be burnt out of the user's ETH.
+  if (chain.chainId === 8453n && fees.maxFeePerGas > 5_000_000_000n) throw new Error('The gas price a node named is out of range');
   const tx = {
     chainId: chain.chainId,
     nonce,

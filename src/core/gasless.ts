@@ -155,7 +155,9 @@ function notesOk(request: GaslessRequest): boolean {
   const paid = new Set(request.transfers.map((t) => t.to.toLowerCase()));
   const seen = new Set<string>();
   return notes.every((n) => {
-    const to = typeof n.stealthAddress === 'string' ? n.stealthAddress.toLowerCase() : '';
+    // The address must be one that can be written into the call as it stands: a mixed-case one with a wrong checksum is refused here, not later.
+    if (typeof n.stealthAddress !== 'string' || !isValidEvmAddress(n.stealthAddress)) return false;
+    const to = n.stealthAddress.toLowerCase();
     if (!paid.has(to) || seen.has(to)) return false;
     seen.add(to);
     return /^0x0[23][0-9a-fA-F]{64}$/.test(n.ephemeralPubKey) && /^0x([0-9a-fA-F]{2}){1,64}$/.test(n.metadata);
