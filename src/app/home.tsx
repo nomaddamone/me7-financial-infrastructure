@@ -421,6 +421,7 @@ function RequestMode({ t, wallet, rotation, onChanged }: { t: Dict; wallet: Wall
   const open = list.find((a) => a.id === shown);
   return (
     <>
+      <p class="note">{r.how}</p>
       <form class="ask-form" autocomplete="off" onSubmit={(e) => void create(e)}>
         <label class="field">
           <span class="field-label">{r.amount}</span>
@@ -516,7 +517,6 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
   // or by a code that never changes and gives every payer an address of their own (stealth).
   const [mode, setMode] = useState<'rotation' | 'stealth' | 'request'>('rotation');
   const [stealthInfo, setStealthInfo] = useState(false);
-  const [requestInfo, setRequestInfo] = useState(false);
   const stealth = useMemo(() => {
     const meta = stealthMetaAddress(stealthKeys(wallet.seed));
     return { meta, code: stealthCode(meta) };
@@ -570,28 +570,6 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
               {m === 'request' ? t.request.mode : `${m} mode`}
               <span class="seg-net">
                 {m === 'rotation' ? t.stealth.rotationSub : m === 'stealth' ? t.stealth.stealthSub : t.request.sub}
-                {m === 'request' && (
-                  <span
-                    class="info-dot info-dot--in"
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded={requestInfo}
-                    aria-label={t.request.infoLabel}
-                    title={t.request.infoLabel}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRequestInfo((v) => !v);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key !== 'Enter' && e.key !== ' ') return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setRequestInfo((v) => !v);
-                    }}
-                  >
-                    i
-                  </span>
-                )}
                 {m === 'stealth' && (
                   // What stealth mode is: a mark inside the tab, which opens the explanation without switching the tab.
                   <span
@@ -623,13 +601,6 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
       {current.id === 'usdc' && stealthInfo && (
         <ul class="policy policy--aside">
           {t.stealth.info.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      )}
-      {current.id === 'usdc' && requestInfo && (
-        <ul class="policy policy--aside">
-          {t.request.info.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
