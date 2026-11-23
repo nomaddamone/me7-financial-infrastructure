@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { wipe } from '../core/index.ts';
+import { readPayAskHash } from '../core/payrequest.ts';
+import { PayPage } from './paypage.tsx';
 import { Register, SignIn, type Picked } from './auth.tsx';
 import { coldAddress, ColdHome, LedgerConnect, type ColdSession } from './cold.tsx';
 import { Backdrop } from './fx.tsx';
@@ -32,6 +34,16 @@ export function App() {
   // The pages about the wallet link to its parts by name: me7.network/#trading opens that part.
   const [section, setSection] = useState<Section>(() => (location.hash === '#trading' ? 'trading' : 'finance'));
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  // A link that asks for a payment opens on the request itself, before anything of the wallet: the payer needs no account.
+  const [asked, setAsked] = useState(() => readPayAskHash(location.hash));
+  const leaveAsked = () => {
+    setAsked(null);
+    try {
+      history.replaceState(null, '', location.pathname);
+    } catch {
+      /* the link stays in the address bar, which changes nothing */
+    }
+  };
   // A session opened with a Ledger instead of a key file: the device signs, nothing secret is in the page.
   const [cold, setCold] = useState<ColdSession | null>(null);
   // Master secret recovered from the spare key, held only until a new key file is issued.
@@ -130,7 +142,12 @@ export function App() {
             </section>
           </main>
         )}
-        <main class="screen" key={screen} hidden={section !== 'finance'}>
+        {asked && (
+          <main class="screen">
+            <PayPage t={t} ask={asked} onLeave={leaveAsked} />
+          </main>
+        )}
+        <main class="screen" key={screen} hidden={section !== 'finance' || !!asked}>
           {screen === 'welcome' && (
             <Welcome
               t={t}

@@ -1,0 +1,197 @@
+/* The page a request for payment opens on (src/app/paypage.tsx). */
+.pay {
+  gap: 16px;
+}
+.pay-hero,
+.pay-to,
+.pay-body,
+.pay-foot,
+.pay-order {
+  display: grid;
+  gap: 10px;
+}
+.pay-sum {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pay-digits {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.pay-unit {
+  font-size: 14px;
+  text-transform: uppercase;
+}
+.pay-unit .dim {
+  text-transform: none;
+}
+.pay-note {
+  margin: 0;
+  color: var(--dim);
+}
+.pay-note::before {
+  content: '— ';
+}
+.pay-addr {
+  font: inherit;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.pay-ways {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.pay-way {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 4px;
+  border-top: 1px solid var(--line);
+}
+.pay-way:hover:not(:disabled),
+.pay-way[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.pay-way:focus-visible {
+  outline: 1px solid var(--fg);
+  outline-offset: 2px;
+}
+.pay-way:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.pay-way-name {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.pay-way-name .dim {
+  font-weight: 400;
+  text-transform: none;
+  font-size: 12px;
+}
+.pay-way-sub {
+  color: var(--dim);
+  font-size: 12px;
+  text-align: right;
+}
+.pay-approx {
+  margin: 0;
+  font-weight: 700;
+}
+.pay-due {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.pay-due-sum {
+  font-size: 22px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.pay-timer {
+  display: grid;
+  gap: 6px;
+}
+.pay-bar {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  background: var(--line);
+}
+.pay-bar::-webkit-progress-bar {
+  background: var(--line);
+}
+.pay-bar::-webkit-progress-value {
+  background: var(--fg);
+}
+.pay-bar::-moz-progress-bar {
+  background: var(--fg);
+}
+.pay-clock {
+  font-size: 12px;
+  color: var(--dim);
+}
+.pay-state,
+.pay-done {
+  margin: 0;
+}
+.pay-done {
+  font-weight: 700;
+  padding: 12px;
+  border: 1px solid var(--fg);
+}
+.pay-foot {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  justify-items: start;
+}
+
+/* What is asked stands in white on black's opposite; how to pay it keeps to the dark. */
+.pay {
+  padding: 0;
+  gap: 0;
+  border: 2px solid var(--fg);
+}
+.pay .pay-hero {
+  background: var(--fg);
+  color: var(--bg);
+  padding: 22px 18px 20px;
+}
+.pay .pay-title::before {
+  color: var(--bg);
+}
+.pay .pay-digits {
+  font-size: 60px;
+  letter-spacing: -0.04em;
+}
+.pay .pay-unit .dim,
+.pay .pay-note {
+  color: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.pay .pay-to,
+.pay .pay-body,
+.pay .pay-foot {
+  padding: 16px 18px;
+}
+.pay .pay-to {
+  border-bottom: 2px solid var(--fg);
+}
+.pay .pay-way {
+  padding: 14px 10px;
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+.pay .pay-way:hover:not(:disabled),
+.pay .pay-way[aria-pressed='true'] {
+  background: var(--fg);
+  color: var(--bg);
+}
+.pay .pay-way:hover:not(:disabled) .dim,
+.pay .pay-way[aria-pressed='true'] .dim,
+.pay .pay-way:hover:not(:disabled) .pay-way-sub,
+.pay .pay-way[aria-pressed='true'] .pay-way-sub {
+  color: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.pay-own {
+  justify-self: start;
+}
+.pay-pick-life {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

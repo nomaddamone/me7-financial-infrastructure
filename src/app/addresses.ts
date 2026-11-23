@@ -1,3 +1,4 @@
+import { askedIndices } from './requests.ts';
 import { HDKey } from '@scure/bip32';
 import { evmAddressFromPrivateKey, wipe } from '../core/index.ts';
 import { signAuthorization, type SignedAuthorization, type TokenDomain } from '../core/gasless.ts';
@@ -66,10 +67,16 @@ async function scan(wallet: Wallet): Promise<Rotation> {
     count = lastUsed + GAP + 1;
   }
   const at = (index: number) => ({ index, address: holdings[index]?.address ?? wallet.evm });
-  const receive = Math.min(receiveIndex(holdings), holdings.length - 1);
   const used = new Set(holdings.filter(isUsed).map((h) => h.index));
+  // An address set aside for a request for payment is not handed out as the next one: it waits for that payment.
+  const aside = askedIndices(wallet);
+  let receive = Math.min(receiveIndex(holdings), holdings.length - 1);
+  while (aside.has(receive) && receive < holdings.length - 1) {
+    receive++;
+    while (used.has(receive) && receive < holdings.length - 1) receive++;
+  }
   let fresh = receive + 1;
-  while (used.has(fresh)) fresh++;
+  while (used.has(fresh) || aside.has(fresh)) fresh++;
   const result = { receive: at(receive), fresh: at(Math.min(fresh, holdings.length - 1)) };
   // Money that came by the stealth code sits on addresses of its own. They join the list after the
   // rotating ones, so nothing above mistakes them for the seed's path. If the chain cannot be read

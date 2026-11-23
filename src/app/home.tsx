@@ -81,6 +81,9 @@ import { Swap, SWAPPABLE } from './swap.tsx';
 import { loadHistory, paidAddresses, portfolioSeries, rememberPaid, seenAddresses, type History, type HistoryPoint } from './portfolio.ts';
 import { lookalikeOf } from '../core/lookalike.ts';
 import { STEALTH_INDEX } from './stealth.ts';
+import { cleanNote, PAY_MAX, PAY_MIN, payAskHash } from '../core/payrequest.ts';
+import { freshEthAddress, freshTronAddress } from './crossing.ts';
+import { ASKED_MOST, askedIndices, dropAsked, loadAsked, saveAsked, type Asked } from './requests.ts';
 import { parseStealthCode, stealthAddressFor, stealthCode, stealthKeys, stealthMetaAddress, tokenMetadata } from '../core/stealth.ts';
 import { GASLESS_MAX_NOTES, type GaslessRequest, type StealthNote } from '../core/gasless.ts';
 import { isGuessablePassword } from '../core/keyfile.ts';
@@ -359,6 +362,147 @@ function payText(tab: string, address: string, ask: string): string {
   return buildPayText({ network: 'evm', address, chainId: NET.base.chainId, asset: 'usdc-base', amount: formatUnits(units, 6, 6) });
 }
 
+/** Asking for an amount: the form, the link it makes, and the requests made before with whether each was paid (see src/app/requests.ts). */
+function RequestMode({ t, wallet, rotation, onChanged }: { t: Dict; wallet: Wallet; rotation: Rotation | null; onChanged: () => void }) {
+  const r = t.request;
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  // How long the link stands, in hours: an hour, a day or a week.
+  const [life, setLife] = useState(24);
+  // The list follows the wallet to its other devices: what they hold is fetched when the screen opens, and every change is sent on.
+  const carry = () => {
+    markContactsChanged(wallet.evm);
+    void syncContacts(wallet).then(() => setList(loadAsked(wallet)));
+  };
+  useEffect(() => void syncContacts(wallet).then(() => (setList(loadAsked(wallet)), onChanged())), [wallet]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [list, setList] = useState<Asked[]>(() => loadAsked(wallet));
+  const [shown, setShown] = useState<string | null>(null);
+  const linkOf = (a: Asked) => `${location.origin}${location.pathname}${a.hash}`;
+  const paidOf = (a: Asked) => {
+    const h = rotation?.holdings.find((x) => x.index === a.index && x.address === a.address);
+    return h ? h.balance >= BigInt(a.amount) || h.spent : null;
+  };
+
+  const create = async (e: Event) => {
+    e.preventDefault();
+    setError('');
+    const units = parseUnits(amount.trim(), 6);
+    if (units === null || units < PAY_MIN || units > PAY_MAX) return setError(r.badAmount);
+    if (loadAsked(wallet).length >= ASKED_MOST) return setError(r.tooMany);
+    setBusy(true);
+    try {
+      const fresh = await loadRotation(wallet, true);
+      const plain = fresh.holdings.filter((h) => h.index < STEALTH_INDEX);
+      const aside = askedIndices(wallet);
+      // An address of its own for this request: past the one handed out next, unused, and set aside for nothing else.
+      const spot = plain.find((h) => h.index > fresh.fresh.index && !isUsed(h) && !aside.has(h.index));
+      if (!spot) return setError(r.tooMany);
+      // Where a payer's coin returns if a swap from another network fails and the payer named no address: one-time addresses of this wallet.
+      const [refundTron, refundEth] = await Promise.all([freshTronAddress(wallet).then((a): string | undefined => a.address, () => undefined), freshEthAddress(wallet, '0xdAC17F958D2ee523a2206206994597C13D831ec7').then((a): string | undefined => a.address, () => undefined)]);
+      const until = Math.floor(Date.now() / 1000) + life * 3600;
+      const hash = payAskHash({ to: spot.address, amount: units, note, until, ...(refundTron ? { refundTron } : {}), ...(refundEth ? { refundEth } : {}) });
+      const one: Asked = { id: `${Date.now()}-${spot.index}`, index: spot.index, address: spot.address, amount: units.toString(), note: cleanNote(note), created: Date.now(), until, hash };
+      if (!saveAsked(wallet, one)) return setError(r.unsaved);
+      setList(loadAsked(wallet));
+      carry();
+      setShown(one.id);
+      setAmount('');
+      setNote('');
+      onChanged();
+    } catch {
+      setError(t.nodesDown);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const open = list.find((a) => a.id === shown);
+  return (
+    <>
+      <form class="ask-form" autocomplete="off" onSubmit={(e) => void create(e)}>
+        <label class="field">
+          <span class="field-label">{r.amount}</span>
+          <input class="input" type="text" inputMode="decimal" placeholder="0.0" value={amount} onInput={(e) => setAmount(e.currentTarget.value)} />
+        </label>
+        <label class="field">
+          <span class="field-label">{r.note}</span>
+          <input class="input" type="text" maxLength={80} value={note} onInput={(e) => setNote(e.currentTarget.value)} />
+        </label>
+        <div class="field">
+          <span class="field-label">{r.life}</span>
+          <div class="seg seg--two ask-life" role="radiogroup" aria-label={r.life}>
+            {([1, 24] as const).map((hours) => (
+              <button key={hours} type="button" role="radio" aria-checked={life === hours} aria-selected={life === hours} class="seg-item" onClick={() => setLife(hours)}>
+                {hours === 1 ? r.lifeHour : r.lifeDay}
+              </button>
+            ))}
+          </div>
+        </div>
+        {error && (
+          <p class="alert" role="alert">
+            {error}
+          </p>
+        )}
+        <button type="submit" class="btn btn--accent btn--wide" disabled={busy}>
+          {busy ? <Spinner /> : r.create}
+        </button>
+      </form>
+      {open && (
+        <>
+          <span class="field-label">
+            {r.link} · {formatUnits(BigInt(open.amount), 6, 2)} USDC
+          </span>
+          <Qr text={linkOf(open)} />
+          <code class="addr-value">{linkOf(open)}</code>
+          <CopyButton t={t} value={linkOf(open)} />
+          <AddressCode t={t} address={open.address} />
+          <p class="note">{r.linkNote}</p>
+          <p class="note">{r.refundNote}</p>
+        </>
+      )}
+      {list.length > 0 && (
+        <>
+          <h3 class="label">{r.list}</h3>
+          <ul class="rows addr-rows">
+            {[...list].reverse().map((a) => {
+              const paid = paidOf(a);
+              return (
+                <li key={a.id} class="addr-row">
+                  <span class="addr-row-name">
+                    <b>{formatUnits(BigInt(a.amount), 6, 2)} USDC</b>
+                    <span class="dim">
+                      {a.note ? `${a.note} · ` : ''}
+                      {new Date(a.created).toLocaleDateString()} · {paid === null ? '…' : paid ? r.paid : a.until && Date.now() > a.until * 1000 ? r.lapsedShort : r.waiting}
+                    </span>
+                  </span>
+                  <button type="button" class="linklike" onClick={() => setShown(shown === a.id ? null : a.id)}>
+                    {r.show}
+                  </button>
+                  <button
+                    type="button"
+                    class="linklike"
+                    onClick={() => {
+                      dropAsked(wallet, a.id);
+                      setList(loadAsked(wallet));
+                      carry();
+                      if (shown === a.id) setShown(null);
+                      onChanged();
+                    }}
+                  >
+                    {r.remove}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </>
+  );
+}
+
 function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wallet; prices: UsdPrices | null; initial?: Network; onClose: () => void }) {
   const g = t.gasless;
   const rotating = !!NET.base;
@@ -370,8 +514,9 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
   const [ask, setAsk] = useState('');
   // USDC on Base is received one of two ways: on an address that changes after each payment (rotation),
   // or by a code that never changes and gives every payer an address of their own (stealth).
-  const [mode, setMode] = useState<'rotation' | 'stealth'>('rotation');
+  const [mode, setMode] = useState<'rotation' | 'stealth' | 'request'>('rotation');
   const [stealthInfo, setStealthInfo] = useState(false);
+  const [requestInfo, setRequestInfo] = useState(false);
   const stealth = useMemo(() => {
     const meta = stealthMetaAddress(stealthKeys(wallet.seed));
     return { meta, code: stealthCode(meta) };
@@ -419,12 +564,34 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
         ))}
       </div>
       {current.id === 'usdc' && (
-        <div class="seg seg--two seg--mode" role="tablist" aria-label={t.stealth.modes}>
-          {(['rotation', 'stealth'] as const).map((m) => (
+        <div class="seg seg--three seg--mode" role="tablist" aria-label={t.stealth.modes}>
+          {(['rotation', 'stealth', 'request'] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={m === mode} class="seg-item" onClick={() => setMode(m)}>
-              {m} mode
+              {m === 'request' ? t.request.mode : `${m} mode`}
               <span class="seg-net">
-                {m === 'rotation' ? t.stealth.rotationSub : t.stealth.stealthSub}
+                {m === 'rotation' ? t.stealth.rotationSub : m === 'stealth' ? t.stealth.stealthSub : t.request.sub}
+                {m === 'request' && (
+                  <span
+                    class="info-dot info-dot--in"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={requestInfo}
+                    aria-label={t.request.infoLabel}
+                    title={t.request.infoLabel}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRequestInfo((v) => !v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setRequestInfo((v) => !v);
+                    }}
+                  >
+                    i
+                  </span>
+                )}
                 {m === 'stealth' && (
                   // What stealth mode is: a mark inside the tab, which opens the explanation without switching the tab.
                   <span
@@ -460,7 +627,16 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
           ))}
         </ul>
       )}
-      {current.id === 'usdc' && mode === 'stealth' ? (
+      {current.id === 'usdc' && requestInfo && (
+        <ul class="policy policy--aside">
+          {t.request.info.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {current.id === 'usdc' && mode === 'request' ? (
+        <RequestMode t={t} wallet={wallet} rotation={rotation} onChanged={reload} />
+      ) : current.id === 'usdc' && mode === 'stealth' ? (
         <>
           <BrandQr text={stealth.code} reveal={stealth.code} />
           <AddressLine t={t} address={stealth.code} />
@@ -514,7 +690,7 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
           {failed ? t.nodesDown : <Spinner />}
         </p>
       )}
-      {!(current.id === 'usdc' && mode === 'stealth') && <p class="note">{current.note}</p>}
+      {!(current.id === 'usdc' && mode !== 'rotation') && <p class="note">{current.note}</p>}
       {current.id === 'usdc' && mode === 'rotation' && rotation && (
         <>
           <button type="button" class="linklike" onClick={() => setShowAll((v) => !v)}>

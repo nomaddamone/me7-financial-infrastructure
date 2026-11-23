@@ -1,5 +1,6 @@
 import { openSync, sealSync, syncKeys, wipeSyncKeys } from '../core/sync.ts';
 import { pullSync, pushSync } from '../net/sync.ts';
+import { loadAskedAll, mergeAsked, replaceAsked, sanitizeAsked, type Asked } from './requests.ts';
 
 /**
  * The address book: named addresses the user pays often. Each contact is an
@@ -7,6 +8,9 @@ import { pullSync, pushSync } from '../net/sync.ts';
  * code instead, from which a new address is made at every payment. It is kept in this browser and, so that
  * it follows the user to another device, encrypted on me7's store under keys
  * that come from the seed (see src/core/sync.ts). It is not part of the key file.
+ *
+ * The wallet's requests for payment (src/app/requests.ts) travel in the same sealed list, each marked as one:
+ * a device that knows nothing of them reads past them, since they have no name and no coin.
  */
 export interface Contact {
   id: string;
@@ -56,6 +60,8 @@ export function withContact(contacts: readonly Contact[], contact: Omit<Contact,
   const rest = contacts.filter((c) => !(c.asset === contact.asset && c.address.toLowerCase() === address.toLowerCase()));
   return [...rest, { id, name, address, asset: contact.asset }];
 }
+
+const isAsked = (item: unknown): boolean => typeof item === 'object' && item !== null && (item as { kind?: unknown }).kind === 'asked';
 
 /** What this browser knows about the copy on the server: the version it last matched, and whether it has changed since. */
 interface SyncState {
@@ -109,21 +115,27 @@ export async function syncContacts(wallet: { evm: string; seed?: Uint8Array }): 
       const remote = await pullSync(keys);
       const local = loadContacts(owner);
       // A list made before syncing existed has never been stored: it counts as changed.
-      const state = loadState(owner) ?? { version: 0, dirty: local.length > 0 };
+      const state = loadState(owner) ?? { version: 0, dirty: local.length > 0 || loadAskedAll(wallet).length > 0 };
       let list = local;
+      let asked: Asked[] = loadAskedAll(wallet);
       let changed = state.dirty;
       if (remote.blob && remote.version > state.version) {
-        const theirs = sanitize(JSON.parse(new TextDecoder().decode(await openSync(keys, remote.version, remote.blob))));
+        const raw: unknown = JSON.parse(new TextDecoder().decode(await openSync(keys, remote.version, remote.blob)));
+        const theirs = sanitize(raw);
+        const theirAsked = sanitizeAsked(Array.isArray(raw) ? raw.filter(isAsked) : []);
         list = state.dirty ? mergeContacts(theirs, local) : theirs;
-        changed = state.dirty && JSON.stringify(list) !== JSON.stringify(theirs);
+        // Requests are never replaced whole: one made here a moment ago must not vanish because another device spoke first.
+        asked = mergeAsked(theirAsked, asked);
+        changed = (state.dirty && JSON.stringify(list) !== JSON.stringify(theirs)) || JSON.stringify(asked) !== JSON.stringify(theirAsked);
         saveContacts(owner, list);
+        replaceAsked(wallet, asked);
       }
       if (!changed) {
         saveState(owner, { version: Math.max(remote.version, state.version), dirty: false });
         return 'synced';
       }
       const version = Math.max(remote.version, state.version) + 1;
-      const stored = await pushSync(keys, version, await sealSync(keys, version, new TextEncoder().encode(JSON.stringify(list))));
+      const stored = await pushSync(keys, version, await sealSync(keys, version, new TextEncoder().encode(JSON.stringify([...list, ...asked.map((a) => ({ ...a, kind: 'asked' }))]))));
       if (stored === 'stored') {
         saveState(owner, { version, dirty: false });
         return 'synced';

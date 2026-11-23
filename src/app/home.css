@@ -779,3 +779,16 @@
 .aml-link {
   justify-self: start;
 }
+
+/* The form that asks for an amount (the third way of receiving USDC): its fields stand apart like every other form's. */
+.ask-form {
+  display: grid;
+  gap: 12px;
+}
+.ask-form .field {
+  display: grid;
+  gap: 6px;
+}
+.ask-life .seg-item {
+  padding: 10px 2px;
+}
