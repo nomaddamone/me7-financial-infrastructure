@@ -181,6 +181,12 @@ const FILMS: Record<string, readonly Draw[]> = {
     (c) => (box(c, 70, 22, 100, 106), line(c, [86, 48, 154, 48], 4), line(c, [86, 70, 138, 70], 4), line(c, [86, 92, 146, 92], 4)),
     (c) => (box(c, 70, 22, 100, 106), text(c, '1', 120, 76, 44), text(c, 'risk', 120, 112, 15)),
   ],
+  // A request for payment: an amount is named, it becomes a link, the link is paid.
+  request: [
+    (c) => (text(c, '25', 120, 78, 46), text(c, 'usdc', 120, 116, 17)),
+    (c) => (box(c, 34, 54, 76, 42), box(c, 130, 54, 76, 42), line(c, [88, 75, 152, 75], 6)),
+    (c) => (ring(c, 120, 75, 46), tick(c, 120, 75)),
+  ],
   batch: [
     (c) => (dot(c, 40, 75, 26), [24, 58, 92, 126].forEach((y) => ring(c, 204, y, 11))),
     (c) => (dot(c, 40, 75, 12), [24, 58, 92, 126].forEach((y) => (line(c, [58, 75, 186, y], 4), ring(c, 204, y, 11)))),

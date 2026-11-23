@@ -831,6 +831,8 @@ export const PAGES: Page[] = [
             'Ethereum and Base: ETH and the tokens of the wallet, including USDC and USDT.',
             'Tron: TRX and USDT.',
             'Balance, receiving and sending. The wallet follows the app that is open on the device.',
+            'USDT and USDC on Ethereum with no ETH, and USDT on Tron with no TRX: me7’s service pays the network, and the device shows two plain transfers, its fee and your payment.',
+            'A swap for a coin on another network: a plain transfer to the crossing service’s address, which the wallet shows beside for you to compare with the device.',
             'Browsers built on Chromium, because they can talk to USB and Bluetooth devices.',
           ],
         },
@@ -868,6 +870,8 @@ export const PAGES: Page[] = [
             'Ethereum и Base: ETH и токены кошелька, включая USDC и USDT.',
             'Tron: TRX и USDT.',
             'Баланс, получение и отправка. Кошелёк подстраивается под приложение, открытое на устройстве.',
+            'USDT и USDC в Ethereum без ETH и USDT в Tron без TRX: сеть оплачивает сервис me7, а устройство показывает два обычных перевода, его комиссию и ваш платёж.',
+            'Обмен на монету в другой сети: обычный перевод на адрес сервиса перехода, который кошелёк показывает рядом, чтобы сверить с экраном устройства.',
             'Браузеры на основе Chromium: они умеют работать с устройствами по USB и Bluetooth.',
           ],
         },
@@ -1242,7 +1246,7 @@ export const PAGES: Page[] = [
     en: {
       slug: "swap-between-networks",
       title: "Swap coins between networks without buying gas — me7",
-      description: "Swap USDC on Base, or USDT and USDC on Ethereum, for a coin on another network: Tron, Bitcoin, Ethereum or Base. me7 pays the gas; the result arrives on your own address.",
+      description: "Swap USDC on Base, USDT and USDC on Ethereum, or USDT on Tron for a coin on another network. me7 pays the gas; the result arrives on your own address.",
       h1: "A swap from one network to another, in one step",
       lead: "Moving value from one network to another usually means an exchange, or a bridge and gas on both sides. In me7 it is one screen: choose what you give and what you get, and the result arrives on your own address on the other network.",
       card: "Swap a coin for a coin on another network; me7 pays the gas.",
@@ -1251,15 +1255,15 @@ export const PAGES: Page[] = [
           h: "How it works",
           p: [
             "You choose two coins on the swap screen. If they are on different networks, the wallet sends what you give to a crossing service, and the service delivers what it buys to your own address on the other network.",
-            "USDC on Base, and USDT and USDC on Ethereum, leave through me7’s own service: it pays the gas and takes its fee in the coin you give. Other coins leave your main address by an ordinary transfer, and you pay the gas yourself.",
+            "USDC on Base, USDT and USDC on Ethereum, and USDT on Tron leave through me7’s own service: it pays the network and takes its fee in the coin you give. Other coins leave your main address by an ordinary transfer, and you pay the gas yourself.",
           ],
         },
         {
           h: "What can be swapped",
           list: [
-            "You give: USDC on Base; ETH, USDT, USDC, DAI, LINK, WBTC or cbBTC on Ethereum; ETH or cbBTC on Base.",
+            "You give: USDC on Base; ETH, USDT, USDC, DAI, LINK, WBTC or cbBTC on Ethereum; ETH or cbBTC on Base; USDT on Tron.",
             "You get: any coin of the wallet on another network, including USDT and TRX on Tron and bitcoin.",
-            "Giving from Tron or from Bitcoin is not available yet.",
+            "USDT on Tron is taken from 101 USDT: the crossing service accepts nothing smaller from that network. Giving TRX or bitcoin is not available yet.",
           ],
         },
         {
@@ -1289,7 +1293,7 @@ export const PAGES: Page[] = [
     ru: {
       slug: "obmen-mezhdu-setyami",
       title: "Обмен монет между сетями без покупки газа — me7",
-      description: "Меняйте USDC в Base, USDT и USDC в Ethereum на монету в другой сети: Tron, Bitcoin, Ethereum или Base. Газ платит me7, результат приходит на ваш же адрес.",
+      description: "Меняйте USDC в Base, USDT и USDC в Ethereum или USDT в Tron на монету в другой сети. Газ платит me7, результат приходит на ваш же адрес.",
       h1: "Обмен из одной сети в другую за один шаг",
       lead: "Перенести деньги из одной сети в другую обычно значит идти на биржу или через мост и держать газ с обеих сторон. В me7 это один экран: выбираете, что отдаёте и что получаете, и результат приходит на ваш же адрес в другой сети.",
       card: "Обмен монеты на монету в другой сети; газ платит me7.",
@@ -1298,15 +1302,15 @@ export const PAGES: Page[] = [
           h: "Как это работает",
           p: [
             "На экране обмена вы выбираете две монеты. Если они в разных сетях, кошелёк отправляет то, что вы отдаёте, сервису перехода, а тот доставляет купленное на ваш же адрес в другой сети.",
-            "USDC из Base, USDT и USDC из Ethereum уходят через собственный сервис me7: он платит газ и берёт комиссию в той монете, которую вы отдаёте. Остальные монеты уходят с основного адреса обычным переводом, и газ вы платите сами.",
+            "USDC из Base, USDT и USDC из Ethereum и USDT из Tron уходят через собственный сервис me7: он платит сеть и берёт комиссию в той монете, которую вы отдаёте. Остальные монеты уходят с основного адреса обычным переводом, и газ вы платите сами.",
           ],
         },
         {
           h: "Что можно менять",
           list: [
-            "Отдаёте: USDC в Base; ETH, USDT, USDC, DAI, LINK, WBTC или cbBTC в Ethereum; ETH или cbBTC в Base.",
+            "Отдаёте: USDC в Base; ETH, USDT, USDC, DAI, LINK, WBTC или cbBTC в Ethereum; ETH или cbBTC в Base; USDT в Tron.",
             "Получаете: любую монету кошелька в другой сети, в том числе USDT и TRX в Tron и биткоин.",
-            "Отдавать из Tron и из Bitcoin пока нельзя.",
+            "USDT из Tron принимается от 101 USDT: меньше сервис перехода из этой сети не берёт. Отдавать TRX и биткоин пока нельзя.",
           ],
         },
         {
@@ -1414,6 +1418,109 @@ export const PAGES: Page[] = [
         { q: "Можно ли отключить мой адрес, прислав на него цент?", a: "Нет. Меньше доллара от отправителя из списков не считается." },
         { q: "me7 замораживает мои деньги?", a: "Нет. У me7 нет ключа от вашего кошелька. Он отказывается платить газ за этот один адрес; отправить с него самостоятельно вы по-прежнему можете." },
         { q: "Какие монеты это касается?", a: "USDC в Base на всех адресах кошелька и USDT в Tron. В Ethereum адрес проверяет сервис, когда даёт газ." },
+      ],
+    },
+  },
+  {
+    id: 'request',
+    en: {
+      slug: "payment-link",
+      title: "Ask for a crypto payment with a link, paid from any network — me7",
+      description: "Name an amount of USDC and send a link. The payer needs no wallet of yours: they pay USDC on Base, or USDT, ETH or bitcoin from another network, and the exact amount reaches you.",
+      h1: "Ask for an amount, and send a link",
+      lead: "Sending someone an address leaves them to work out the network, the coin and the amount. A request does that for them: one link opens a page that says how much, and lets them pay with what they have.",
+      card: "Name an amount and send a link; it is paid from any of several networks.",
+      sections: [
+        {
+          h: "How it works",
+          p: [
+            "On the receive screen you choose “request”, name an amount of USDC and, if you like, a few words about what it is for. The wallet gives you a link and a code for the screen.",
+            "Whoever opens the link needs no me7 wallet and no account. They pay USDC on Base straight to your address, or another coin from another network; in that case a third party, NEAR Intents, makes the swap and delivers exactly the amount you asked for.",
+            "me7’s own services take no part in such a payment, and me7 takes no fee. What the payer pays over the amount is the crossing service’s price and the network’s.",
+          ],
+        },
+        {
+          h: "How to use it",
+          steps: [
+            "Open “receive”, choose USDC, then “request”.",
+            "Type the amount and what it is for, and choose how long the link stands: an hour or a day.",
+            "Send the link, and tell the payer the eight-digit address code: the payment page shows the same digits.",
+            "Watch the list of requests: it says which are paid.",
+          ],
+        },
+        {
+          h: "What the payer can pay with",
+          list: [
+            "USDC on Base, directly.",
+            "USDT or USDC on Ethereum; ETH on Ethereum or Base; bitcoin.",
+            "USDT on Tron, for requests of 101 USDC and more: the crossing service accepts nothing smaller from that network.",
+          ],
+        },
+        {
+          h: "What to keep in mind",
+          list: [
+            "A link can be rewritten by whoever passes it on, like any address sent in a message. The address code is there to catch that.",
+            "Paying from another network puts the payer’s money in the crossing service’s hands while the swap runs. If it fails, the money returns to the refund address: the payer’s own, or a one-time address of yours on that network.",
+            "The link’s time limit is the page’s rule. The address stays yours for good: money sent to it by hand later still arrives.",
+            "Your address is not shown on the page unless the payer chooses to pay it directly, but it is inside the link itself.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Does the payer need me7?", a: "No. The link opens an ordinary page; the payer sends from any wallet or exchange." },
+        { q: "What does me7 charge for a request?", a: "Nothing. A payment by request does not go through me7’s services." },
+        { q: "How do I know which request was paid?", a: "Each request has an address of its own among your changing addresses, so the wallet sees it, on any of your devices." },
+        { q: "Can a request be paid twice?", a: "The page offers nothing to pay with once the request’s address has received the amount or its time is up. Someone who sends to the address by hand can still do so, and the money is yours." },
+      ],
+    },
+    ru: {
+      slug: "ssylka-na-oplatu",
+      title: "Запрос оплаты в крипте по ссылке, из любой сети — me7",
+      description: "Назовите сумму в USDC и отправьте ссылку. Плательщику ваш кошелёк не нужен: он платит USDC в Base либо USDT, ETH или биткоином из другой сети, а вам приходит точная сумма.",
+      h1: "Назовите сумму и отправьте ссылку",
+      lead: "Когда человеку присылают адрес, сеть, монету и сумму он подбирает сам. Запрос делает это за него: одна ссылка открывает страницу, где сказано, сколько, и где можно заплатить тем, что есть.",
+      card: "Назовите сумму и отправьте ссылку; оплатить её можно из нескольких сетей.",
+      sections: [
+        {
+          h: "Как это работает",
+          p: [
+            "На экране получения вы выбираете «request», называете сумму в USDC и, если хотите, пару слов о том, за что. Кошелёк выдаёт ссылку и код для экрана.",
+            "Тому, кто откроет ссылку, не нужны ни кошелёк me7, ни аккаунт. Он платит USDC в Base прямо на ваш адрес либо другой монетой из другой сети; тогда обмен делает сторонний сервис NEAR Intents и доставляет ровно ту сумму, которую вы запросили.",
+            "Собственные сервисы me7 в таком платеже не участвуют, и комиссию me7 не берёт. Всё, что плательщик платит сверх суммы, это цена сервиса перехода и сети.",
+          ],
+        },
+        {
+          h: "Как пользоваться",
+          steps: [
+            "Откройте «получить», выберите USDC, затем «request».",
+            "Введите сумму и за что, выберите, сколько действует ссылка: час или день.",
+            "Отправьте ссылку и назовите плательщику восемь цифр кода адреса: на странице оплаты он увидит те же цифры.",
+            "Следите за списком запросов: в нём видно, какие оплачены.",
+          ],
+        },
+        {
+          h: "Чем может заплатить плательщик",
+          list: [
+            "USDC в сети Base, напрямую.",
+            "USDT или USDC в Ethereum; ETH в Ethereum или Base; биткоин.",
+            "USDT в Tron, для запросов от 101 USDC: меньше сервис перехода из этой сети не берёт.",
+          ],
+        },
+        {
+          h: "Что стоит помнить",
+          list: [
+            "Ссылку может переписать тот, кто её пересылает, как и любой адрес в сообщении. Код адреса нужен, чтобы это заметить.",
+            "При оплате из другой сети деньги плательщика на время обмена оказываются у сервиса перехода. Если обмен не состоится, они вернутся на адрес возврата: собственный адрес плательщика или ваш одноразовый адрес в той сети.",
+            "Срок ссылки это правило страницы. Адрес остаётся вашим навсегда: деньги, отправленные на него вручную позже, всё равно придут.",
+            "Ваш адрес на странице не показан, пока плательщик не выберет оплату напрямую, но он есть внутри самой ссылки.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Нужен ли плательщику me7?", a: "Нет. Ссылка открывает обычную страницу; плательщик отправляет с любого кошелька или биржи." },
+        { q: "Сколько me7 берёт за запрос?", a: "Ничего. Платёж по запросу не проходит через сервисы me7." },
+        { q: "Как понять, какой запрос оплачен?", a: "У каждого запроса свой адрес среди ваших сменных, поэтому кошелёк это видит, на любом вашем устройстве." },
+        { q: "Можно ли оплатить запрос дважды?", a: "Страница не предложит платить, когда на адрес запроса уже пришла сумма или вышел срок. Тот, кто отправит на адрес вручную, сделать это по-прежнему может, и деньги ваши." },
       ],
     },
   },

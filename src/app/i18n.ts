@@ -977,7 +977,7 @@ const ru = {
       {
         id: 'bridge',
         name: 'Обмен между сетями без газа',
-        text: 'USDC из Base, USDT и USDC из Ethereum меняются на монету в другой сети: в Tron, Bitcoin, Ethereum или Base. Газ платит me7, комиссия берётся в той же монете. Обмен идёт через сторонний сервис NEAR Intents: пока он идёт, деньги у него, а результат приходит на ваш же адрес.',
+        text: 'USDC из Base, USDT и USDC из Ethereum и USDT из Tron меняются на монету в другой сети: в Tron, Bitcoin, Ethereum или Base. Газ платит me7, комиссия берётся в той же монете. Обмен идёт через сторонний сервис NEAR Intents: пока он идёт, деньги у него, а результат приходит на ваш же адрес.',
         usual: 'биржа или мост, и в каждой сети нужна своя монета на газ.',
       },
       {
@@ -1013,7 +1013,7 @@ const ru = {
       {
         id: 'ledger',
         name: 'Холодная подпись',
-        text: 'С Ledger ключ не покидает устройство. Каждый перевод вы читаете на его экране; вслепую не подписывается ничего.',
+        text: 'С Ledger ключ не покидает устройство. Каждый перевод вы читаете на его экране; вслепую не подписывается ничего. USDT и USDC уходят и без монеты на газ, а монету можно обменять на монету в другой сети: всё это обычные переводы, которые устройство показывает целиком.',
         usual: 'устройство часто просят подтвердить набор символов, не показывая, что в нём.',
       },
       {
@@ -1039,6 +1039,12 @@ const ru = {
         name: 'Проверка AML по запросу',
         text: 'Любой адрес, свой или чужой, можно проверить у стороннего сервиса BlockSec: связан ли он с санкциями, взломами, мошенничеством. Без регистрации, оплата в USDC. BlockSec не видит, кто спрашивал. Это оценка одного сервиса, а не гарантия.',
         usual: 'отдельный сайт, аккаунт и пакет проверок, купленный вперёд.',
+      },
+      {
+        id: 'request',
+        name: 'Запрос оплаты ссылкой',
+        text: 'Называете сумму и получаете ссылку. Плательщику me7 не нужен: он открывает страницу и платит USDC в Base или другой монетой из другой сети, а вам приходит ровно запрошенная сумма. Обмен делает сторонний сервис NEAR Intents; me7 в таком платеже не участвует и комиссию не берёт.',
+        usual: 'адрес шлют текстом, а сеть и монету плательщик подбирает сам и ошибается.',
       },
       {
         id: 'batch',
@@ -2036,7 +2042,7 @@ const en: Dict = {
       {
         id: 'bridge',
         name: 'Swaps between networks, no gas',
-        text: 'USDC on Base, USDT and USDC on Ethereum can be swapped for a coin on another network: Tron, Bitcoin, Ethereum or Base. me7 pays the gas, and its fee is taken in the coin you give. The swap goes through a third party, NEAR Intents: while it runs the money is in its hands, and the result arrives on your own address.',
+        text: 'USDC on Base, USDT and USDC on Ethereum, and USDT on Tron can be swapped for a coin on another network: Tron, Bitcoin, Ethereum or Base. me7 pays the gas, and its fee is taken in the coin you give. The swap goes through a third party, NEAR Intents: while it runs the money is in its hands, and the result arrives on your own address.',
         usual: 'an exchange or a bridge, and the coin of each network to pay its gas.',
       },
       {
@@ -2072,7 +2078,7 @@ const en: Dict = {
       {
         id: 'ledger',
         name: 'Cold signing',
-        text: 'With a Ledger the key never leaves the device. You read every transfer on its screen; nothing is signed blind.',
+        text: 'With a Ledger the key never leaves the device. You read every transfer on its screen; nothing is signed blind. USDT and USDC go without a coin for gas, and a coin can be swapped for a coin on another network: all of it by plain transfers the device shows in full.',
         usual: 'the device is often asked to confirm a string of characters without showing what is in it.',
       },
       {
@@ -2098,6 +2104,12 @@ const en: Dict = {
         name: 'An AML check on request',
         text: 'Any address, yours or somebody else\'s, can be checked with a third party, BlockSec: whether it is tied to sanctions, hacks or fraud. No sign-up, paid in USDC. BlockSec does not see who asked. It is one service\'s rating, not a guarantee.',
         usual: 'a separate site, an account and a pack of checks bought ahead.',
+      },
+      {
+        id: 'request',
+        name: 'A request for payment, as a link',
+        text: 'You name an amount and get a link. The payer needs no me7: they open the page and pay USDC on Base, or another coin from another network, and exactly the amount asked reaches you. A third party, NEAR Intents, makes the swap; me7 takes no part in such a payment and takes no fee.',
+        usual: 'an address is sent as text, and the payer picks the network and the coin alone, and gets it wrong.',
       },
       {
         id: 'batch',
