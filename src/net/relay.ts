@@ -46,6 +46,21 @@ export async function fetchRelayPricing(): Promise<GaslessPricing | null> {
   }
 }
 
+/** What so much ETH for gas costs in USDC today (see `fuel` in the service). Throws when the service cannot say. */
+export async function fetchFuelCost(wei: bigint): Promise<bigint> {
+  const answer = (await ask(`/fuel?wei=${wei}`)) as { ok?: unknown; cost?: unknown } | null;
+  if (answer?.ok !== true || typeof answer.cost !== 'string' || !/^[0-9]{1,12}$/.test(answer.cost)) throw new RelayError('down');
+  return BigInt(answer.cost);
+}
+
+/** Hand over a request that gathers the wallet's own USDC onto `to` and pays the fee; the service sends `wei` of ETH to `to` in the same transaction. */
+export async function relayFuel(request: GaslessRequest, to: string, wei: bigint): Promise<string> {
+  const body = JSON.stringify({ ...request, fuel: { to, wei } }, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value));
+  const answer = (await ask('/fuel', { method: 'POST', headers: { 'content-type': 'application/json' }, body })) as { ok?: unknown; hash?: unknown; error?: unknown; address?: unknown } | null;
+  if (answer?.ok === true && typeof answer.hash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(answer.hash)) return answer.hash;
+  throw new RelayError(typeof answer?.error === 'string' ? answer.error : 'down', typeof answer?.address === 'string' && /^0x[0-9a-fA-F]{40}$/.test(answer.address) ? answer.address : '');
+}
+
 /**
  * Tell me7's service which addresses a payment is about to be made from, so that its look at them for quarantine
  * (see src/core/quarantine.ts) is done by the time the payment comes. They are the addresses the payment itself

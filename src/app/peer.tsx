@@ -1,5 +1,5 @@
-import { UsdcElsewhere } from './elsewhere.tsx';
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import type { SignedAuthorization } from '../core/gasless.ts';
 import { parseUnits } from '../core/index.ts';
 import {
   erc20ApproveData,
@@ -11,8 +11,9 @@ import {
   type PeerCurrency,
   type PeerPlatform,
 } from '../core/peer.ts';
+import { fuelAuthorizations, planFuel, pocketOf, type FuelPlan, type Holding } from '../core/rotation.ts';
 import { fetchEvmBalance, formatUnits } from '../net/balances.ts';
-import { NET } from '../net/endpoints.ts';
+import { GASLESS, NET } from '../net/endpoints.ts';
 import {
   fetchAllowance,
   fetchPeerOrder,
@@ -21,7 +22,9 @@ import {
   registerPeerPayee,
   type PeerOrder,
 } from '../net/peer.ts';
+import { fetchFuelCost, fetchRelayPricing, RelayError, relayFuel, relaySend } from '../net/relay.ts';
 import { fetchErc20Balance, fetchEvmFees } from '../net/send.ts';
+import { loadRotation, signWithAddresses } from './addresses.ts';
 import { BASE_L1_RESERVE } from './assets.ts';
 import { sendEvmCall } from './evm-call.ts';
 import { Spinner } from './fx.tsx';
@@ -40,6 +43,10 @@ const fiatText = (units: bigint, rate: bigint) => {
 };
 /** Generous ceilings used only to show the fee and to check there is enough ETH before starting. */
 const GAS_CEILING = 60_000n + 1_300_000n;
+/** The same for taking an order back. ETH for it is asked of me7's service along with the ETH for making the order. */
+const TAKE_GAS = 400_000n;
+const randomNonce = () => hexOf(crypto.getRandomValues(new Uint8Array(32)));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const AGREED_KEY = 'me7.peer.agreed';
 const ordersKey = (owner: string) => `me7.peer.orders.${owner.toLowerCase()}`;
@@ -65,29 +72,6 @@ function saveOrderIds(owner: string, ids: readonly bigint[]): void {
   } catch {
     /* private mode: the orders are still found through the indexer */
   }
-}
-
-function Copy({ t, value }: { t: Dict; value: string }) {
-  const [done, setDone] = useState(false);
-  useEffect(() => {
-    if (!done) return;
-    const id = setTimeout(() => setDone(false), 1400);
-    return () => clearTimeout(id);
-  }, [done]);
-  return (
-    <button
-      type="button"
-      class={`btn btn--small${done ? ' btn--accent' : ''}`}
-      onClick={() => {
-        navigator.clipboard?.writeText(value).then(
-          () => setDone(true),
-          () => undefined,
-        );
-      }}
-    >
-      {done ? t.copied : t.copy}
-    </button>
-  );
 }
 
 /** What has to be read and ticked before the first withdrawal on this device. */
@@ -150,9 +134,11 @@ interface Draft {
   amount: bigint;
   rate: bigint;
   feeCeiling: bigint;
+  /** What me7's service is asked for first, when the main address lacks gas or USDC: the gathering, the fee, and so much ETH. */
+  fuel: { plan: FuelPlan; wei: bigint } | null;
 }
 
-type RunStep = 'register' | 'approve' | 'deposit';
+type RunStep = 'fuel' | 'register' | 'approve' | 'deposit';
 
 function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Base; home: number }) {
   const p = t.peer;
@@ -162,6 +148,8 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
     if (home !== 0) setView((v) => (v === 'running' ? v : 'main'));
   }, [home]);
   const [balance, setBalance] = useState<{ usdc: bigint; eth: bigint } | null>(null);
+  // Money the wallet holds on Base that an order is not made from, so that the figure above does not look short.
+  const [apart, setApart] = useState<{ stealth: bigint; held: bigint }>({ stealth: 0n, held: 0n });
   const [orders, setOrders] = useState<PeerOrder[] | null>(null);
   const [ordersNote, setOrdersNote] = useState('');
   const [platform, setPlatform] = useState<PeerPlatform>(PEER_PLATFORMS[0] as PeerPlatform);
@@ -173,17 +161,65 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
   const [error, setError] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [runStep, setRunStep] = useState<RunStep>('register');
+  const [withFuel, setWithFuel] = useState(false);
   const [txHash, setTxHash] = useState('');
   const [taking, setTaking] = useState<bigint | null>(null);
   // Money only leaves after the account password is typed again.
   const [confirm, setConfirm] = useState('');
 
+  /** The addresses an order may be paid for from: the pocket's own, the main one among them; stealth money stays apart, and so does anything in quarantine. */
+  const sources = useCallback(async (fresh = false): Promise<Holding[]> => (await loadRotation(wallet, fresh)).spendable.filter((h) => pocketOf(h) === 'plain'), [wallet]);
+  // Permissions signed for the service and not yet answered for: sent again as they are, they cannot be carried twice.
+  const signedFuel = useRef<{ key: string; request: { chain: string; transfers: SignedAuthorization[]; fee: SignedAuthorization } } | null>(null);
+  /** Ask me7's service to get the main address ready, and wait until the money and the ETH are there. */
+  const fuelUp = useCallback(
+    async (fuel: { plan: FuelPlan; wei: bigint }, needUsdc: bigint, needEth: bigint) => {
+      const key = `${fuel.plan.fee}:${fuel.plan.amount}:${fuel.wei}:${fuel.plan.gather.map((g) => `${g.holding.index}=${g.value}`).join(',')}`;
+      if (signedFuel.current?.key !== key) {
+        const unsigned = fuelAuthorizations(fuel.plan, wallet.evm, { feeReceiver: GASLESS.receiver, now: BigInt(Math.floor(Date.now() / 1000)), lifetime: 600n, random: randomNonce });
+        const [fee, ...transfers] = signWithAddresses(wallet, { ...GASLESS.domain, chainId: base.chainId, contract: base.usdc }, [unsigned.fee, ...unsigned.transfers]);
+        if (!fee) throw new Error('nothing to sign');
+        signedFuel.current = { key, request: { chain: 'base', transfers, fee } };
+      }
+      try {
+        if (fuel.wei > 0n) await relayFuel(signedFuel.current.request, wallet.evm, fuel.wei);
+        else await relaySend(signedFuel.current.request);
+      } catch (e) {
+        // "Already taken" is good news here: an earlier try went through and only its answer was lost.
+        if (!(e instanceof RelayError) || e.code !== 'duplicate') {
+          if (!(e instanceof RelayError) || e.code !== 'down') signedFuel.current = null;
+          throw e;
+        }
+      }
+      for (let i = 0; i < 60; i++) {
+        const [u, e] = await Promise.all([fetchErc20Balance(base.rpc, base.usdc, wallet.evm), fetchEvmBalance(base.rpc, wallet.evm).then((r) => r.value)]).catch(() => [0n, 0n] as const);
+        if (u >= needUsdc && e >= needEth) {
+          signedFuel.current = null;
+          return;
+        }
+        await sleep(2000);
+      }
+      throw new Error('Timed out waiting for the service');
+    },
+    [base, wallet],
+  );
+
   const refresh = useCallback(async () => {
     const [u, e] = await Promise.allSettled([
-      fetchErc20Balance(base.rpc, base.usdc, wallet.evm),
+      sources().then((list) => list.reduce((sum, h) => sum + h.balance, 0n)),
       fetchEvmBalance(base.rpc, wallet.evm).then((r) => r.value),
     ]);
     if (u.status === 'fulfilled' && e.status === 'fulfilled') setBalance({ usdc: u.value, eth: e.value });
+    void loadRotation(wallet).then(
+      (r) => {
+        const usable = new Set(r.spendable.map((h) => h.address));
+        setApart({
+          stealth: r.holdings.reduce((sum, h) => (pocketOf(h) === 'stealth' ? sum + h.balance : sum), 0n),
+          held: r.holdings.reduce((sum, h) => (pocketOf(h) === 'plain' && !usable.has(h.address) ? sum + h.balance : sum), 0n),
+        });
+      },
+      () => undefined,
+    );
 
     // Order numbers come from this device and from Peer's indexer; what they hold comes from the contract.
     const known = loadOrderIds(wallet.evm);
@@ -212,7 +248,7 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
     saveOrderIds(wallet.evm, keep);
     setOrders(live.sort((a, b) => (a.id < b.id ? 1 : -1)));
     setOrdersNote(note);
-  }, [base, wallet, p]);
+  }, [base, wallet, p, sources]);
 
   useEffect(() => {
     void refresh();
@@ -227,19 +263,34 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
     if (!platform.valid(clean)) return setError(p.badHandle);
     setBusy(true);
     try {
-      const [held, eth, fees, rate] = await Promise.all([
-        fetchErc20Balance(base.rpc, base.usdc, wallet.evm),
+      const [pocket, eth, fees, rate] = await Promise.all([
+        sources(true),
         fetchEvmBalance(base.rpc, wallet.evm).then((r) => r.value),
         fetchEvmFees(base.rpc),
         fetchPeerRate(base.rpc, currency),
       ]);
-      setBalance({ usdc: held, eth });
-      const units = all ? held : parseUnits(amount, 6);
+      const total = pocket.reduce((sum, h) => sum + h.balance, 0n);
+      const onMain = pocket.find((h) => h.index === 0)?.balance ?? 0n;
+      setBalance({ usdc: total, eth });
+      const units = all ? total : parseUnits(amount, 6);
       if (units === null || units <= 0n) return setError(p.badAmount);
-      if (units > held) return setError(p.noUsdc);
+      if (units > total) return setError(p.noUsdc);
       const feeCeiling = GAS_CEILING * fees.maxFeePerGas + 2n * BASE_L1_RESERVE;
-      if (feeCeiling > eth) return setError(p.noGas);
-      setDraft({ platform, currency, handle: clean, amount: units, rate, feeCeiling });
+      // The main address has the gas and the money already: nothing is asked of the service.
+      if (eth >= feeCeiling && units <= onMain) {
+        setDraft({ platform, currency, handle: clean, amount: units, rate, feeCeiling, fuel: null });
+        setView('review');
+        return;
+      }
+      // Otherwise me7's service gathers the USDC onto the main address and puts the ETH there, for a fee in USDC.
+      // The ETH asked for covers taking the order back later as well.
+      const wei = eth >= feeCeiling ? 0n : feeCeiling + TAKE_GAS * fees.maxFeePerGas + BASE_L1_RESERVE - eth;
+      const pricing = await fetchRelayPricing();
+      if (!pricing || wei > GASLESS.fuelMax) return setError(p.noService);
+      const cost = wei > 0n ? await fetchFuelCost(wei) : 0n;
+      const plan = planFuel(pocket, all ? 'all' : units, pricing, cost);
+      if (plan === 'no-funds' || plan === 'too-many') return setError(p.noUsdc);
+      setDraft({ platform, currency, handle: clean, amount: plan.amount, rate, feeCeiling, fuel: { plan, wei } });
       setView('review');
     } catch {
       setError(p.loadFailed);
@@ -256,8 +307,15 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
     }
     setConfirm('');
     setError('');
+    setWithFuel(draft.fuel !== null);
     setView('running');
     try {
+      if (draft.fuel) {
+        setRunStep('fuel');
+        await fuelUp(draft.fuel, draft.amount, draft.fuel.wei > 0n ? draft.feeCeiling : 0n);
+        // Done and paid for: a second try of what follows must not ask for it again.
+        setDraft((d) => (d ? { ...d, fuel: null } : d));
+      }
       setRunStep('register');
       const payeeHash = await registerPeerPayee(draft.platform.id, draft.handle);
       const data = peerCreateDepositData({
@@ -295,6 +353,17 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
     setError('');
     setTaking(order.id);
     try {
+      // No ETH left on the main address for this: me7's service puts some there, for its fee in USDC.
+      const [eth, fees] = await Promise.all([fetchEvmBalance(base.rpc, wallet.evm).then((r) => r.value), fetchEvmFees(base.rpc)]);
+      const need = TAKE_GAS * fees.maxFeePerGas + BASE_L1_RESERVE;
+      if (eth < need) {
+        const wei = need * 2n - eth;
+        const pricing = await fetchRelayPricing();
+        if (!pricing || wei > GASLESS.fuelMax) throw new Error(p.noService);
+        const plan = planFuel(await sources(true), 0n, pricing, await fetchFuelCost(wei));
+        if (plan === 'no-funds' || plan === 'too-many') throw new Error(p.takeNeedsFee);
+        await fuelUp({ plan, wei }, 0n, need);
+      }
       await sendEvmCall(base, wallet, PEER_ESCROW, peerWithdrawData(order.id));
     } catch (e) {
       setError(`${p.takeFailed} ${e instanceof Error ? e.message.slice(0, 160) : ''}`.trim());
@@ -308,6 +377,7 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
 
   if (view === 'running') {
     const steps: { id: RunStep; label: string }[] = [
+      ...(withFuel ? [{ id: 'fuel' as const, label: p.stepFuel }] : []),
       { id: 'register', label: p.stepRegister },
       { id: 'approve', label: p.stepApprove },
       { id: 'deposit', label: p.stepDeposit },
@@ -367,9 +437,19 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
             {draft.platform.label}
             <span class="peer-handle">{draft.handle}</span>
           </dd>
-          <dt>{t.feeUpTo}</dt>
-          <dd>{formatUnits(draft.feeCeiling, 18, 6)} eth</dd>
+          {draft.fuel ? (
+            <>
+              <dt>{p.feeMe7}</dt>
+              <dd>{usdc(draft.fuel.plan.fee)} usdc</dd>
+            </>
+          ) : (
+            <>
+              <dt>{t.feeUpTo}</dt>
+              <dd>{formatUnits(draft.feeCeiling, 18, 6)} eth</dd>
+            </>
+          )}
         </dl>
+        {draft.fuel && <p class="note">{p.reviewFuel}</p>}
         <p class="alert">{p.reviewHandle}</p>
         <p class="note">{p.reviewRate}</p>
         <p class="note">{p.reviewSigns}</p>
@@ -407,7 +487,6 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
       <form class="panel" autocomplete="off" onSubmit={(e) => void prepare(e)}>
         <div class="kv">
           <h2 class="title">{p.title}</h2>
-          <UsdcElsewhere t={t} wallet={wallet} />
           <button type="button" class="btn btn--small" onClick={() => setView('faq')}>
             {p.faq}
           </button>
@@ -416,14 +495,9 @@ function Withdraw({ t, wallet, base, home }: { t: Dict; wallet: Wallet; base: Ba
         <dl class="review peer-balance">
           <dt>usdc · {base.name}</dt>
           <dd>{balance ? usdc(balance.usdc) : <Spinner />}</dd>
-          <dt>eth · {base.name}</dt>
-          <dd>{balance ? formatUnits(balance.eth, 18, 6) : <Spinner />}</dd>
         </dl>
-        <p class="note">{p.fundNote}</p>
-        <div class="peer-addr">
-          <code class="addr-value">{wallet.evm}</code>
-          <Copy t={t} value={wallet.evm} />
-        </div>
+        {apart.stealth > 0n && <p class="note">{p.stealthApart.replace('{sum}', usdc(apart.stealth))}</p>}
+        {apart.held > 0n && <p class="note">{p.heldApart.replace('{sum}', usdc(apart.held))}</p>}
 
         <span class="field-label">{p.platform}</span>
         <div class="seg seg--three" role="tablist">

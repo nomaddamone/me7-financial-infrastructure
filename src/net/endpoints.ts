@@ -235,6 +235,11 @@ export const GASLESS = {
   gasPerCall: 80_000n,
   /** Above this gas price (wei per gas, 0.5 gwei) the relay asks to wait instead of paying. */
   maxGasPrice: 500_000_000n,
+  /**
+   * The most ETH (0.0005) me7's service puts on a wallet's own address for the gas of operations it cannot carry
+   * itself, such as an order in Peer's contract. What it puts there is paid for in USDC, in the same operation.
+   */
+  fuelMax: 500_000_000_000_000n,
   /** The pocket refuses a quote whose gas part is above this (0.50 USDC): the relay is wrong or the network is on fire. */
   maxGasPart: 500_000n,
   /** Issuing a name: the service's part of the fee (0.5 USDC, set by the owner on 2026-11-13) and the gas a registration takes, with room to spare (measured: about 255 thousand). */

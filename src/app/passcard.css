@@ -26,7 +26,6 @@
   width: min(100%, 300px);
   padding-bottom: 16px;
   border: 1px solid #262626;
-  border-radius: 14px;
   overflow: hidden;
   background: rgb(14, 14, 14);
   color: rgb(244, 244, 244);
@@ -72,7 +71,6 @@
   padding: 8px 8px 6px;
   display: grid;
   gap: 4px;
-  border-radius: 6px;
   background: #fff;
   color: #000;
   text-align: center;

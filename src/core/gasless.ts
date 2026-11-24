@@ -217,6 +217,8 @@ export interface GaslessRules {
   /** Unix seconds now, and how long a permission must still be valid for the relay to take it. */
   now: bigint;
   margin: bigint;
+  /** A request with no transfers at all, only the fee: allowed where the fee buys something other than a transfer. */
+  allowEmpty?: boolean;
 }
 
 export type GaslessProblem = 'bad-request' | 'bad-signature' | 'bad-fee' | 'expired';
@@ -230,7 +232,7 @@ export type GaslessProblem = 'bad-request' | 'bad-signature' | 'bad-fee' | 'expi
 export function checkGaslessRequest(request: GaslessRequest, rules: GaslessRules): GaslessProblem | null {
   const { transfers, fee } = request;
   try {
-    if (transfers.length < 1 || transfers.length > GASLESS_MAX_TRANSFERS) return 'bad-request';
+    if (transfers.length < (rules.allowEmpty ? 0 : 1) || transfers.length > GASLESS_MAX_TRANSFERS) return 'bad-request';
     const all = [...transfers, fee];
     all.forEach(check);
     if (new Set(all.map((a) => `${a.from.toLowerCase()}:${a.nonce.toLowerCase()}`)).size !== all.length) return 'bad-request';

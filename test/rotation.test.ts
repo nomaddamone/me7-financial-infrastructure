@@ -5,8 +5,10 @@ import {
   firstSpendNonce,
   isUsed,
   MAX_SOURCES,
+  fuelAuthorizations,
   planAuthorizations,
   planCollect,
+  planFuel,
   planPayment,
   planSendAll,
   receiveIndex,
@@ -217,4 +219,62 @@ describe('reading the addresses from the chain', () => {
     expect(() => readSumBalance(coder.encode(['tuple(bool,bytes)[]'], [[[false, '0x']]]))).toThrow();
     expect(() => readSumBalance('nonsense')).toThrow();
   });
+
+describe('getting the main address ready for what the service cannot carry', () => {
+  const COST = usdc(0.25);
+  const fee = (transfers: number) => gaslessFee(PRICING, transfers, 0) + COST;
+  const plan = (h: Holding[], amount: bigint | 'all') => {
+    const p = planFuel(h, amount, PRICING, COST);
+    if (typeof p === 'string') throw new Error(p);
+    return p;
+  };
+
+  it('takes nothing from the other addresses when the main one holds the amount and the fee', () => {
+    const p = plan(wallet(100, 40, 30), usdc(50));
+    expect(p).toEqual({ gather: [], fee: fee(0), amount: usdc(50) });
+  });
+
+  it('takes from the largest addresses only what is missing, the fee counted in', () => {
+    const h = wallet(10, 5, 40, 30);
+    const p = plan(h, usdc(60));
+    // 10 on the main address; 40 and 30 are the largest of the rest. The last gives only what is still short.
+    expect(p.gather.map((g) => [g.holding.index, g.value])).toEqual([[2, usdc(40)], [3, usdc(60) + fee(2) - usdc(50)]]);
+    expect(p.fee).toBe(fee(2));
+    const onMain = usdc(10) + p.gather.reduce((n2, g) => n2 + g.value, 0n);
+    expect(onMain - p.fee).toBe(usdc(60));
+  });
+
+  it('sells everything: every address is emptied, and the fee comes out of the total', () => {
+    const p = plan(wallet(10, 5, 40), 'all');
+    expect(p.gather.map((g) => g.value)).toEqual([usdc(40), usdc(5)]);
+    expect(p.amount).toBe(usdc(55) - fee(2));
+  });
+
+  it('says so when there is not enough, and allows asking for gas alone', () => {
+    expect(planFuel(wallet(1, 0.2), usdc(1), PRICING, COST)).toBe('no-funds');
+    expect(planFuel(wallet(0, 0), 'all', PRICING, COST)).toBe('no-funds');
+    expect(plan(wallet(5), 0n)).toEqual({ gather: [], fee: fee(0), amount: 0n });
+  });
+
+  it('signs into a request the service takes: gathering onto the main address, the fee from it', () => {
+    const h = wallet(10, 40, 30);
+    const p = plan(h, usdc(60));
+    const main = h[0]!.address;
+    const unsigned = fuelAuthorizations(p, main, options);
+    expect(unsigned.transfers.every((t) => t.to === main)).toBe(true);
+    expect([unsigned.fee.from, unsigned.fee.to, unsigned.fee.value]).toEqual([main, GASLESS.receiver, p.fee]);
+    // An address that never sent through the service marks its first transfer.
+    expect(unsigned.transfers[0]!.nonce).toBe(firstSpendNonce(unsigned.transfers[0]!.from));
+    const sign = (u: (typeof unsigned.transfers)[number]) => {
+      const { index, ...auth } = u;
+      return signAuthorization(DOMAIN, auth, bytes(account(index).privateKey));
+    };
+    const request = { chain: 'base', transfers: unsigned.transfers.map(sign), fee: sign(unsigned.fee) };
+    expect(countPayouts(request.transfers, request.fee)).toBe(0);
+    // With the price of the ETH added to the fixed part, as the service adds it, the fee is exactly enough.
+    const rules = { domain: DOMAIN, feeReceiver: GASLESS.receiver, pricing: { ...PRICING, base: PRICING.base + COST }, now: NOW, margin: 60n };
+    expect(checkGaslessRequest(request, rules)).toBeNull();
+    expect(checkGaslessRequest({ ...request, fee: sign({ ...unsigned.fee, value: p.fee - usdc(0.3) }) }, rules)).toBe('bad-fee');
+  });
+});
 });

@@ -139,6 +139,57 @@ export function planCollect(holdings: readonly Holding[], pricing: GaslessPricin
 }
 
 /**
+ * Getting the wallet's main address ready for something me7's service cannot carry itself (an order in Peer's
+ * contract must be made by the address that owns it): `amount` of USDC on the main address, and ETH on it for
+ * the gas, bought from the service for `cost` USDC. Money is taken from the other addresses only as far as the
+ * main one falls short; the main address pays the fee out of what it then holds.
+ */
+export interface FuelPlan {
+  gather: { holding: Holding; value: bigint }[];
+  /** The whole fee: the service's usual one for this many transfers, and the price of the ETH. */
+  fee: bigint;
+  /** What is left on the main address for the purpose, after the fee. */
+  amount: bigint;
+}
+
+/** `holdings` are the addresses money may be taken from, the main one (number 0) among them. 'all' means everything they hold, less the fee. */
+export function planFuel(holdings: readonly Holding[], amount: bigint | 'all', pricing: GaslessPricing, cost: bigint): FuelPlan | PlanProblem {
+  const main = holdings.find((h) => h.index === 0)?.balance ?? 0n;
+  const others = holdings.filter((h) => h.index !== 0 && h.balance > 0n).sort((a, b) => (a.balance < b.balance ? 1 : a.balance > b.balance ? -1 : a.index - b.index));
+  // Gathering onto the address that pays the fee is no payout, whatever its size.
+  const feeFor = (transfers: number) => gaslessFee(pricing, transfers, 0) + cost;
+  if (amount === 'all') {
+    if (others.length > MAX_SOURCES) return 'too-many';
+    const fee = feeFor(others.length);
+    const total = main + sum(others.map((h) => h.balance));
+    if (total <= fee) return 'no-funds';
+    return { gather: others.map((holding) => ({ holding, value: holding.balance })), fee, amount: total - fee };
+  }
+  if (amount < 0n) return 'no-funds';
+  for (let k = 0; k <= others.length; k++) {
+    const fee = feeFor(k);
+    const chosen = others.slice(0, k);
+    const held = main + sum(chosen.map((h) => h.balance));
+    if (held < amount + fee) continue;
+    if (k > MAX_SOURCES) return 'too-many';
+    const last = chosen[k - 1];
+    return { gather: chosen.map((holding) => ({ holding, value: holding === last ? amount + fee - (held - holding.balance) : holding.balance })), fee, amount };
+  }
+  return 'no-funds';
+}
+
+/** The permissions of a fuel plan, in the order they are carried out: the gathering onto the main address, then the fee from it. */
+export function fuelAuthorizations(
+  plan: FuelPlan,
+  main: string,
+  options: { feeReceiver: string; now: bigint; lifetime: bigint; random: () => string },
+): { transfers: Unsigned[]; fee: Unsigned } {
+  const window = { validAfter: 0n, validBefore: options.now + options.lifetime };
+  const transfers: Unsigned[] = plan.gather.map(({ holding, value }) => ({ index: holding.index, from: holding.address, to: main, value, ...window, nonce: holding.spent ? options.random() : firstSpendNonce(holding.address) }));
+  return { transfers, fee: { index: 0, from: main, to: options.feeReceiver, value: plan.fee, ...window, nonce: options.random() } };
+}
+
+/**
  * Two pockets, one balance.
  *
  * Money that came by the stealth code sits on addresses nobody can tie to the wallet. Spent in one
