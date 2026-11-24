@@ -75,6 +75,7 @@ const ru = {
           'Перевод USDC в сети Base вы подписываете своим ключом, а газ за него оплачивает сервис me7: он проводит уже подписанный перевод в сети как есть. Изменить получателя или сумму он не может. ETH для таких переводов не нужен.',
           'Перевод USDT в сети Tron с адреса, на котором нет TRX, вы тоже подписываете своим ключом: платёж получателю и комиссию. Сервис me7 арендует энергию на ваш адрес, добавляет TRX, которые берёт сеть, и проводит оба подписанных перевода как есть. Изменить получателя или сумму он не может. TRX для таких переводов не нужны.',
           'Перед оплатой сети сервис сверяет адреса с санкционными списками, а для USDC ещё и с базой мошеннических адресов. Переводы на такие адреса и с них он не оплачивает.',
+          'Карточка в Apple Wallet делается только по вашей просьбе. Для неё сервис me7 знает адреса, которые вы открыли, и следит за их остатком; уведомления идут через Apple. Удалите карточку, и сервис забудет адреса.',
         ],
       },
       {
@@ -1080,6 +1081,12 @@ const ru = {
         usual: 'адрес шлют текстом, а сеть и монету плательщик подбирает сам и ошибается.',
       },
       {
+        id: 'walletcard',
+        name: 'Карточка в Apple Wallet',
+        text: 'Остаток в USDC, код для получения и уведомление на экране блокировки, когда приходят деньги: карточкой в Wallet на iPhone. Она только показывает, отправить с неё ничего нельзя. Для неё сервис me7 должен знать адреса, которые вы откроете; ключей он не получает.',
+        usual: 'чтобы узнать, пришли ли деньги, кошелёк открывают и разблокируют.',
+      },
+      {
         id: 'batch',
         name: 'Пакетный платёж',
         text: 'Несколько получателей одной операцией: либо деньги получают все, либо никто. Комиссия одна на всю операцию.',
@@ -1173,6 +1180,7 @@ const en: Dict = {
           "You sign a USDC transfer on Base with your own key, and me7's service pays the gas for it: it puts the already signed transfer through on the network as it is. It cannot change the recipient or the amount. No ETH is needed for such transfers.",
           "A USDT transfer on Tron from an address that holds no TRX you also sign with your own key: the payment to the recipient and the fee. me7's service rents energy onto your address, adds the TRX the network charges, and puts both signed transfers through as they are. It cannot change the recipient or the amount. No TRX is needed for such transfers.",
           'Before paying the network, the service checks the addresses against sanctions lists, and for USDC against a database of scam addresses as well. It does not pay for transfers to or from such addresses.',
+          'A card in Apple Wallet is made only when you ask for one. For it me7’s service knows the addresses you opened and watches what they hold; notices go through Apple. Remove the card, and the service forgets the addresses.',
         ],
       },
       {
@@ -2176,6 +2184,12 @@ const en: Dict = {
         name: 'A request for payment, as a link',
         text: 'You name an amount and get a link. The payer needs no me7: they open the page and pay USDC on Base, or another coin from another network, and exactly the amount asked reaches you. A third party, NEAR Intents, makes the swap; me7 takes no part in such a payment and takes no fee.',
         usual: 'an address is sent as text, and the payer picks the network and the coin alone, and gets it wrong.',
+      },
+      {
+        id: 'walletcard',
+        name: 'A card in Apple Wallet',
+        text: 'The balance in USDC, a code to receive by and a notice on the lock screen when money arrives: as a card in Wallet on the iPhone. It only shows; nothing can be sent from it. For it me7’s service has to know the addresses you open; it is given no keys.',
+        usual: 'to learn whether money has come, the wallet is opened and unlocked.',
       },
       {
         id: 'batch',

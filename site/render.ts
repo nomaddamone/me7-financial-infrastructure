@@ -25,7 +25,7 @@ function section(s: Section): string {
 const GROUPS: readonly { key: 'protect' | 'private' | 'easy'; ids: readonly string[] }[] = [
   { key: 'protect', ids: ['keyfile', 'vault', 'safesend', 'quarantine', 'aml', 'ledger', 'open'] },
   { key: 'private', ids: ['privacy', 'stealth', 'cross'] },
-  { key: 'easy', ids: ['gasless', 'tronless', 'ethless', 'bridge', 'request', 'names', 'batch', 'cashout'] },
+  { key: 'easy', ids: ['gasless', 'tronless', 'ethless', 'bridge', 'request', 'walletcard', 'names', 'batch', 'cashout'] },
 ];
 
 /** The GitHub mark, as in the wallet's header. */

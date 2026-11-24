@@ -1525,6 +1525,121 @@ export const PAGES: Page[] = [
     },
   },
   {
+    id: 'walletcard',
+    en: {
+      slug: "apple-wallet-crypto-balance",
+      title: "USDC balance as a card in Apple Wallet, with payment notices — me7",
+      description: "A card in Apple Wallet on the iPhone: your USDC balance on Base, a code to receive by, and a lock-screen notice when a payment arrives. View only: nothing is sent from it.",
+      h1: "Your balance as a card in Apple Wallet",
+      lead: "To see whether a payment has come, a crypto wallet usually has to be opened and unlocked. me7 can put a card beside the bank cards in your iPhone: it shows the balance, tells you on the lock screen when money arrives, and carries the code a payer scans.",
+      card: "The balance, a code to receive by and a notice when money arrives, in Wallet on the iPhone.",
+      sections: [
+        {
+          h: "What the card shows",
+          list: [
+            "The balance in USDC on Base of the addresses you opened for it.",
+            "A notice on the lock screen when money arrives, with the amount.",
+            "A code to receive by: the payer scans it off your phone. Under it stands your name, if the address has one, or the address shortened.",
+            "The eight-digit address code, to compare with the payer.",
+            "On the back: the latest arrivals and outgoings, and when the card was last brought up to date.",
+          ],
+        },
+        {
+          h: "What me7’s service learns",
+          p: [
+            "This is the one part of me7 in which the service knows addresses of yours. To keep the card up to date it has to be told which addresses to watch, and it reads what they hold from the blockchain about every forty seconds. The wallet says so before a card is made, and nothing is sent until you agree.",
+            "The service is given no keys and can send nothing from your addresses. You choose what to open: the main address alone, or all of the pocket’s addresses. The one-time addresses of stealth payments are never opened.",
+            "Notices reach the phone through Apple: Apple learns that your card has changed, not what is on it.",
+            "The service forgets the card and its addresses when you remove the card from the phone, when you press “remove the card” in the wallet, or a day after it was made if no phone took it.",
+          ],
+        },
+        {
+          h: "How to add it",
+          steps: [
+            "Open me7 in Safari on the iPhone and sign in.",
+            "Open the “card” tab and choose which addresses to open.",
+            "Tick that you understand what the service will know, and press “Add to Apple Wallet”.",
+            "Confirm in the sheet the phone shows. The card appears in Wallet.",
+          ],
+        },
+        {
+          h: "What to keep in mind",
+          list: [
+            "The card is not a payment card and has nothing to do with Apple Pay: it cannot pay in a shop, and nothing can be sent from it.",
+            "It shows USDC on Base only. Other coins and other networks are not on it.",
+            "The balance on the card can be up to a minute behind the blockchain.",
+            "Whoever holds your unlocked phone sees the balance and the address, as they would see any card in Wallet.",
+            "me7 takes no fee for the card.",
+            "Apple Wallet and iPhone are trademarks of Apple Inc. me7 is not affiliated with Apple.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Can I pay with this card?", a: "No. It shows the balance and receives notices. Payments are made in the wallet itself, signed with your key." },
+        { q: "Does me7’s service see my whole wallet?", a: "Only the addresses you open for the card, and only what anyone can read about them in the blockchain. It holds no keys." },
+        { q: "How do I make the service forget my addresses?", a: "Remove the card from Wallet on the phone, or press “remove the card” in the wallet’s “card” tab. The card and its addresses are deleted from the service." },
+        { q: "Does it work on Android?", a: "No. The card is a pass for Apple Wallet and is added on an iPhone." },
+        { q: "How fast does the notice come?", a: "The service looks at the addresses about every forty seconds, and the phone is told as soon as the sum has changed." },
+      ],
+    },
+    ru: {
+      slug: "kartochka-apple-wallet",
+      title: "Остаток USDC в Apple Wallet и уведомление о поступлении — me7",
+      description: "Карточка в Apple Wallet на iPhone: остаток USDC в сети Base, код для получения и уведомление на экране блокировки о платеже. Только показывает: отправить с неё нельзя.",
+      h1: "Остаток карточкой в Apple Wallet",
+      lead: "Чтобы узнать, пришёл ли платёж, криптокошелёк обычно надо открыть и разблокировать. me7 может положить карточку рядом с банковскими картами в iPhone: она показывает остаток, сообщает на экране блокировки о поступлении и несёт код, который сканирует плательщик.",
+      card: "Остаток, код для получения и уведомление о поступлении, в Wallet на iPhone.",
+      sections: [
+        {
+          h: "Что показывает карточка",
+          list: [
+            "Остаток в USDC в сети Base на адресах, которые вы для неё открыли.",
+            "Уведомление на экране блокировки, когда приходят деньги, с суммой.",
+            "Код для получения: плательщик сканирует его с вашего телефона. Под ним стоит ваше имя, если оно есть у адреса, или сокращённый адрес.",
+            "Восемь цифр кода адреса, чтобы сверить с плательщиком.",
+            "На обороте: последние поступления и списания и время последнего обновления.",
+          ],
+        },
+        {
+          h: "Что узнаёт сервис me7",
+          p: [
+            "Это единственное место в me7, где сервис знает ваши адреса. Чтобы карточка обновлялась, ему нужно сказать, за какими адресами следить, и он читает их остаток из блокчейна примерно раз в сорок секунд. Кошелёк говорит об этом до того, как сделать карточку, и ничего не отправляет без вашего согласия.",
+            "Ключей сервис не получает и отправить с ваших адресов ничего не может. Что открыть, выбираете вы: один основной адрес или все адреса кармана. Одноразовые адреса платежей stealth не открываются никогда.",
+            "Уведомления приходят на телефон через Apple: Apple узнаёт, что ваша карточка изменилась, но не что на ней.",
+            "Сервис забывает карточку и её адреса, когда вы удаляете карточку с телефона, когда нажимаете «удалить карточку» в кошельке, или через сутки после создания, если её не добавили ни на один телефон.",
+          ],
+        },
+        {
+          h: "Как добавить",
+          steps: [
+            "Откройте me7 в Safari на iPhone и войдите.",
+            "Откройте вкладку «карта» и выберите, какие адреса открыть.",
+            "Отметьте, что понимаете, что узнает сервис, и нажмите «Добавить в Apple Wallet».",
+            "Подтвердите в окне, которое покажет телефон. Карточка появится в Wallet.",
+          ],
+        },
+        {
+          h: "Что стоит помнить",
+          list: [
+            "Карточка не платёжная и к Apple Pay отношения не имеет: расплатиться ею в магазине нельзя, отправить с неё ничего нельзя.",
+            "Она показывает только USDC в сети Base. Других монет и сетей на ней нет.",
+            "Остаток на карточке может отставать от блокчейна до минуты.",
+            "Тот, у кого в руках ваш разблокированный телефон, видит остаток и адрес, как видел бы любую карту в Wallet.",
+            "За карточку me7 ничего не берёт.",
+            "Apple Wallet и iPhone — товарные знаки Apple Inc. me7 не связан с Apple.",
+          ],
+        },
+      ],
+      faq: [
+        { q: "Можно ли платить этой карточкой?", a: "Нет. Она показывает остаток и получает уведомления. Платежи делаются в самом кошельке и подписываются вашим ключом." },
+        { q: "Видит ли сервис me7 весь мой кошелёк?", a: "Только адреса, которые вы открыли для карточки, и только то, что о них может прочитать в блокчейне кто угодно. Ключей у него нет." },
+        { q: "Как сделать, чтобы сервис забыл мои адреса?", a: "Удалите карточку из Wallet на телефоне или нажмите «удалить карточку» во вкладке «карта». Карточка и её адреса стираются с сервиса." },
+        { q: "Работает ли на Android?", a: "Нет. Карточка сделана для Apple Wallet и добавляется на iPhone." },
+        { q: "Как быстро приходит уведомление?", a: "Сервис смотрит на адреса примерно раз в сорок секунд и сообщает телефону, как только сумма изменилась." },
+      ],
+    },
+  },
+  {
     id: 'aml',
     en: {
       slug: "aml-check",

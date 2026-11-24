@@ -181,6 +181,12 @@ const FILMS: Record<string, readonly Draw[]> = {
     (c) => (box(c, 70, 22, 100, 106), line(c, [86, 48, 154, 48], 4), line(c, [86, 70, 138, 70], 4), line(c, [86, 92, 146, 92], 4)),
     (c) => (box(c, 70, 22, 100, 106), text(c, '1', 120, 76, 44), text(c, 'risk', 120, 112, 15)),
   ],
+  // The card in Apple Wallet: a card, the balance on it, a notice that money has come.
+  walletcard: [
+    (c) => (box(c, 44, 26, 152, 98), text(c, 'me7', 120, 86, 34)),
+    (c) => (box(c, 44, 26, 152, 98), text(c, '1 240', 120, 78, 32), text(c, 'usdc', 120, 106, 15)),
+    (c) => (text(c, '+25', 120, 80, 50), text(c, 'usdc', 120, 116, 17)),
+  ],
   // A request for payment: an amount is named, it becomes a link, the link is paid.
   request: [
     (c) => (text(c, '25', 120, 78, 46), text(c, 'usdc', 120, 116, 17)),
