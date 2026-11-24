@@ -68,6 +68,7 @@ import { AmlCheck } from './aml.tsx';
 import { HeldNote } from './held.tsx';
 import { markTold, quarantined, quarantineOf, syncQuarantine, type Quarantined } from './quarantine.ts';
 import { useOwnName } from './ownname.ts';
+import { PassCard } from './passcard.tsx';
 import { addressCode } from '../core/payqr.ts';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, feeAssetOf, type AssetDef } from './assets.ts';
@@ -3067,7 +3068,7 @@ export function Home({ t, wallet, onExit }: { t: Dict; wallet: Wallet; onExit: (
     { id: 'pocket', label: t.tabPocket },
     { id: 'vault', label: t.tabVault },
     { id: 'peer', label: t.peer.tab },
-    { id: 'card', label: t.tabCard, soon: true },
+    { id: 'card', label: t.tabCard },
   ];
   return (
     <>
@@ -3089,7 +3090,12 @@ export function Home({ t, wallet, onExit }: { t: Dict; wallet: Wallet; onExit: (
       {tab === 'pocket' && <Pocket t={t} wallet={wallet} onExit={onExit} home={home} />}
       {tab === 'vault' && <Vault t={t} wallet={wallet} home={home} />}
       {tab === 'peer' && <Peer t={t} wallet={wallet} home={home} />}
-      {tab === 'card' && <Card t={t} />}
+      {tab === 'card' && (
+        <>
+          <PassCard t={t} wallet={wallet} />
+          <Card t={t} />
+        </>
+      )}
     </>
   );
 }
