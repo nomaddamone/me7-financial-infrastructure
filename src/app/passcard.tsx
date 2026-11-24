@@ -32,7 +32,7 @@ function Sample({ t, receive, address }: { t: Dict; receive: string; address: st
             <b>USDC</b>
           </div>
         </div>
-        <img class="pass-strip" src={p.lang === 'ru' ? stripRu : stripEn} alt="1 240.50" width="375" height="123" />
+        <img class="pass-strip" src={p.lang === 'ru' ? stripRu : stripEn} alt="1 240.50" width="375" height="144" />
         <div class="pass-fields">
           <div class="pass-field">
             <span>{p.sampleArrived}</span>
@@ -47,7 +47,7 @@ function Sample({ t, receive, address }: { t: Dict; receive: string; address: st
           <svg viewBox={`0 0 ${path.size} ${path.size}`} shape-rendering="crispEdges" aria-hidden="true">
             <path d={path.d} />
           </svg>
-          <span>{receive.length > 24 ? `${receive.slice(0, 10)}…${receive.slice(-8)}` : receive}</span>
+          <span>{receive.length > 26 ? `${receive.slice(0, 6)}…${receive.slice(-6)}` : receive}</span>
         </div>
       </div>
       <figcaption class="tag">{p.sample}</figcaption>
