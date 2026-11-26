@@ -104,7 +104,7 @@ ${LANGS.map((l) => `<link rel="alternate" hreflang="${l}" href="${ORIGIN + pathO
 <meta property="og:title" content="${esc(c.title)}">
 <meta property="og:description" content="${esc(c.description)}">
 <meta property="og:url" content="${url}">
-<meta property="og:image" content="${ORIGIN}/og.png">
+<meta property="og:image" content="${ORIGIN}/og.png?v=2">
 <meta property="og:locale" content="${lang === 'ru' ? 'ru_RU' : 'en_US'}">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
@@ -157,7 +157,8 @@ export function frontPageText(): string {
 
 /** The head of the front page: what search engines and link previews read. */
 export function frontPageHead(): string {
-  const c = HUB.en;
+  // The front page speaks for the whole wallet in a link preview, so its description is its own and not the overview page's.
+  const c = { description: 'Privacy and simple transfers for your stablecoins. A new address for every payment, USDC and USDT sent without ETH or TRX. Keys stay in your browser.' };
   const site = { '@context': 'https://schema.org', '@type': 'WebSite', name: 'me7', alternateName: 'me7 — financial infrastructure', url: `${ORIGIN}/` };
   return [
     `<script type="application/ld+json">${JSON.stringify(site).replace(/</g, '\\u003c')}</script>`,
@@ -168,7 +169,7 @@ export function frontPageHead(): string {
     `<meta property="og:title" content="me7 — financial infrastructure" />`,
     `<meta property="og:description" content="${esc(c.description)}" />`,
     `<meta property="og:url" content="${ORIGIN}/" />`,
-    `<meta property="og:image" content="${ORIGIN}/og.png" />`,
+    `<meta property="og:image" content="${ORIGIN}/og.png?v=2" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<link rel="icon" href="/favicon.ico" sizes="48x48" />`,
     `<link rel="icon" href="/favicon.png" type="image/png" sizes="96x96" />`,
