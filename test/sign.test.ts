@@ -133,6 +133,12 @@ describe('the sign: an address as rings of arcs', () => {
     expect(reads({ width: 480, height: 640, radius: 190 })).toBe(true);
   });
 
+  it('is read from far off and from close by in a sharp picture', () => {
+    expect(reads({ width: 1280, height: 720, radius: 64, cx: 700, cy: 330 })).toBe(true);
+    expect(reads({ width: 1280, height: 720, radius: 90, cx: 420, cy: 400, squash: 0.9, slant: 0.4 })).toBe(true);
+    expect(reads({ width: 1280, height: 720, radius: 340 })).toBe(true);
+  });
+
   it('is read at a slant', () => {
     for (const slant of [0, 0.7, 1.6, 2.5]) {
       expect(reads({ squash: 0.9, slant }), `a tenth narrower at ${slant}`).toBe(true);

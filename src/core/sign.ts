@@ -11,14 +11,14 @@
  * All lengths here are in parts of the sign's radius, measured to its edge.
  */
 
-export const SIGN_RINGS = [0.52, 0.67, 0.82] as const;
+export const SIGN_RINGS = [0.5, 0.66, 0.82] as const;
 /** Half the width of the circle round the sign; the circle's middle is the sign's edge, at 1. */
-export const SIGN_EDGE_HALF = 0.014;
+export const SIGN_EDGE_HALF = 0.02;
 export const SIGN_CELLS = 64;
 /** Half the width of a ring's band, how far a spoke reaches past the band, and half the spoke's width. */
-export const SIGN_HALF = 0.03;
-export const SIGN_SPOKE = 0.058;
-export const SIGN_SPOKE_HALF = 0.016;
+export const SIGN_HALF = 0.035;
+export const SIGN_SPOKE = 0.055;
+export const SIGN_SPOKE_HALF = 0.02;
 
 /** What an address in a sign is for. It is not drawn: it goes into the check sum, and the reader tries each. */
 export const SIGN_KINDS = ['usdc-base', 'evm'] as const;
@@ -169,46 +169,55 @@ function roundMean(g: Grey, lie: Lie, radius: number, angles: number): number {
  * rises from far off; the sharp one looks at a ring's edges too, and falls off as soon as the lie is a little wrong.
  */
 function fit(g: Grey, lie: Lie, angles: number, sharp: boolean): number {
-  const before = roundMean(g, lie, sharp ? 0.962 : 0.945, angles);
-  const after = roundMean(g, lie, sharp ? 1.04 : 1.06, angles);
+  const before = roundMean(g, lie, sharp ? 0.955 : 0.94, angles);
+  const after = roundMean(g, lie, sharp ? 1.045 : 1.065, angles);
   // The circle round the sign is lit all the way, with dark on both sides of it.
   const edge = roundMean(g, lie, 1, angles) - (before + after) / 2;
   let lit = 0;
-  let dark = roundMean(g, lie, 0.455, angles) + before + after;
+  let dark = roundMean(g, lie, 0.44, angles) + before + after;
   if (!sharp) {
     for (const r of SIGN_RINGS) lit += roundMean(g, lie, r, angles);
-    dark += roundMean(g, lie, 0.595, angles) + roundMean(g, lie, 0.745, angles);
+    dark += roundMean(g, lie, 0.58, angles) + roundMean(g, lie, 0.74, angles);
     return lit / 3 - dark / 5 + edge;
   }
   for (const r of SIGN_RINGS) {
-    lit += roundMean(g, lie, r - 0.019, angles) + roundMean(g, lie, r, angles) + roundMean(g, lie, r + 0.019, angles);
-    dark += roundMean(g, lie, r - 0.047, angles) + roundMean(g, lie, r + 0.047, angles);
+    lit += roundMean(g, lie, r - 0.022, angles) + roundMean(g, lie, r, angles) + roundMean(g, lie, r + 0.022, angles);
+    dark += roundMean(g, lie, r - 0.057, angles) + roundMean(g, lie, r + 0.057, angles);
   }
   return lit / 9 - dark / 9 + 2 * edge;
 }
 
 /** Places a sign may lie, best first: a search over where its middle is and how large it is, on a small copy of the picture. */
 function seek(g: Grey): Lie[] {
-  const small = shrink(g, 120);
-  const scale = g.width / small.width;
-  const least = Math.min(small.width, small.height);
-  const found: { lie: Lie; score: number }[] = [];
-  for (let r = least * 0.19; r <= least * 0.62; r *= 1.07) {
-    const step = Math.max(1.5, r * 0.09);
-    for (let cy = small.height * 0.22; cy <= small.height * 0.78; cy += step) {
-      for (let cx = small.width * 0.22; cx <= small.width * 0.78; cx += step) {
-        const lie = { cx, cy, a: r, b: r, turn: 0 };
-        found.push({ lie, score: fit(small, lie, 20, false) });
+  // Twice: on a very small copy for a sign that fills the picture, and on a larger one for a sign held far off.
+  const passes = [
+    { most: 120, from: 0.19, to: 0.64, grain: 0.09, least: 1.5, angles: 20 },
+    { most: 240, from: 0.07, to: 0.19, grain: 0.13, least: 2, angles: 16 },
+  ];
+  const picked: Lie[] = [];
+  for (const pass of passes) {
+    const small = shrink(g, pass.most);
+    const scale = g.width / small.width;
+    const least = Math.min(small.width, small.height);
+    const found: { lie: Lie; score: number }[] = [];
+    for (let r = least * pass.from; r <= least * pass.to; r *= 1.07) {
+      const step = Math.max(pass.least, r * pass.grain);
+      for (let cy = small.height * 0.15; cy <= small.height * 0.85; cy += step) {
+        for (let cx = small.width * 0.15; cx <= small.width * 0.85; cx += step) {
+          const lie = { cx, cy, a: r, b: r, turn: 0 };
+          found.push({ lie, score: fit(small, lie, pass.angles, false) });
+        }
       }
     }
-  }
-  found.sort((p, q) => q.score - p.score);
-  // The best few that are not one and the same place.
-  const picked: Lie[] = [];
-  for (const f of found) {
-    if (picked.length === 6 || f.score <= 0) break;
-    const lie = { cx: (f.lie.cx + 0.5) * scale, cy: (f.lie.cy + 0.5) * scale, a: f.lie.a * scale, b: f.lie.b * scale, turn: 0 };
-    if (picked.every((p) => Math.hypot(p.cx - lie.cx, p.cy - lie.cy) > p.a * 0.3 || Math.abs(p.a - lie.a) > p.a * 0.2)) picked.push(lie);
+    found.sort((p, q) => q.score - p.score);
+    // The best few of each pass that are not one and the same place.
+    const mine: Lie[] = [];
+    for (const f of found) {
+      if (mine.length === 4 || f.score <= 0) break;
+      const lie = { cx: (f.lie.cx + 0.5) * scale, cy: (f.lie.cy + 0.5) * scale, a: f.lie.a * scale, b: f.lie.b * scale, turn: 0 };
+      if (mine.every((p) => Math.hypot(p.cx - lie.cx, p.cy - lie.cy) > p.a * 0.3 || Math.abs(p.a - lie.a) > p.a * 0.2)) mine.push(lie);
+    }
+    picked.push(...mine);
   }
   return picked;
 }
@@ -264,10 +273,12 @@ function solve(m: number[][], v: number[]): number[] | null {
 
 /**
  * The circle round the sign, found from a rough lie. Along many spokes from the middle the picture is walked
- * inward from well outside, and the first bright line met is the circle. An oval is laid through those points,
- * the points that lie off it (something else bright was met first) are dropped, and it is laid again.
+ * inward from well outside, and the first bright line met is the circle; once the lie is nearly right (`near`),
+ * the bright line nearest to where the circle should be is taken instead, so that writing or a button beside the
+ * sign is not taken for it. An oval is laid through those points, the points that lie off it are dropped, and it
+ * is laid again.
  */
-function rim(g: Grey, rough: Lie, from: number, to: number): Lie | null {
+function rim(g: Grey, rough: Lie, from: number, to: number, near: boolean): Lie | null {
   const rays = 72;
   const size = Math.max(rough.a, rough.b);
   const step = 0.6 / size;
@@ -288,18 +299,77 @@ function rim(g: Grey, rough: Lie, from: number, to: number): Lie | null {
   const bright = all[Math.floor(all.length * 0.97)] as number;
   if (bright - dark < 12) return null;
   const edge = dark + 0.4 * (bright - dark);
-  let points: { u: number; v: number }[] = [];
-  walks.forEach((walk, k) => {
-    let i = 0;
-    while (i < walk.length && (walk[i] as number) <= edge) i++;
-    if (i === 0 || i >= walk.length) return;
-    while (i + 1 < walk.length && (walk[i + 1] as number) > (walk[i] as number)) i++;
-    const [x, y] = place(rough, from - i * step, (k / rays) * 2 * Math.PI);
-    points.push({ u: (x - rough.cx) / size, v: (y - rough.cy) / size });
+  // Every bright line each spoke crosses: where it is, as a place on the sign with the rough lie's size as one.
+  const crossed: { u: number; v: number; t: number }[][] = walks.map((walk, k) => {
+    const list: { u: number; v: number; t: number; lit: number }[] = [];
+    for (let i = 1; i + 1 < walk.length; i++) {
+      const v = walk[i] as number;
+      if (v <= edge || v < (walk[i - 1] as number) || v <= (walk[i + 1] as number)) continue;
+      const t = from - i * step;
+      const [x, y] = place(rough, t, (k / rays) * 2 * Math.PI);
+      list.push({ u: (x - rough.cx) / size, v: (y - rough.cy) / size, t, lit: v });
+    }
+    return list.sort((p, q) => q.lit - p.lit).slice(0, 6);
   });
+  let points: { u: number; v: number }[] = [];
+  if (near) {
+    // The lie is nearly right already: of the bright lines a spoke crosses, the one nearest to where the circle should be.
+    for (const list of crossed) {
+      let pick: { u: number; v: number; t: number } | null = null;
+      for (const c of list) if (!pick || Math.abs(c.t - 1) < Math.abs(pick.t - 1)) pick = c;
+      if (pick) points.push(pick);
+    }
+  } else {
+    // The lie is rough, and beside a sign there is writing, buttons, the edge of a screen. Ovals are laid through five
+    // crossings picked by chance, many times over, and the one that the most spokes agree with is the circle: nothing
+    // else bright runs all the way round.
+    let seed = 12345;
+    const chance = (n: number) => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0), Math.floor((seed / 0x100000000) * n));
+    const live = crossed.map((list, k) => ({ list, k })).filter((c) => c.list.length > 0);
+    if (live.length < rays * 0.5) return null;
+    let most = 0;
+    for (let go = 0; go < 260; go++) {
+      const five: { u: number; v: number }[] = [];
+      const used = new Set<number>();
+      while (five.length < 5) {
+        const at5 = chance(live.length);
+        if (used.has(at5)) continue;
+        used.add(at5);
+        const list = (live[at5] as { list: { u: number; v: number }[] }).list;
+        five.push(list[chance(list.length)] as { u: number; v: number });
+      }
+      const m = five.map((q) => [q.u * q.u, q.u * q.v, q.v * q.v, q.u, q.v]);
+      const conic = solve(m, [1, 1, 1, 1, 1]);
+      if (!conic) continue;
+      const [A, B, C, D, E] = conic as [number, number, number, number, number];
+      const det = 4 * A * C - B * B;
+      if (!(det > 1e-9)) continue;
+      const uc = (-2 * C * D + B * E) / det;
+      const vc = (-2 * A * E + B * D) / det;
+      const k = 1 + A * uc * uc + B * uc * vc + C * vc * vc;
+      const mean = (A + C) / 2;
+      const spread = Math.hypot((A - C) / 2, B / 2);
+      if (!(k > 0) || !(mean - spread > 0)) continue;
+      const wide = Math.sqrt(k / (mean - spread));
+      const slim = Math.sqrt(k / (mean + spread));
+      if (slim < wide * 0.6 || wide > 1.7 || wide < 0.55 || Math.hypot(uc, vc) > 0.5) continue;
+      const agreed: { u: number; v: number }[] = [];
+      for (const { list } of live) {
+        let best: { u: number; v: number } | null = null;
+        let off = 0.025;
+        for (const c of list) {
+          const d = Math.abs(Math.sqrt((A * (c.u - uc) ** 2 + B * (c.u - uc) * (c.v - vc) + C * (c.v - vc) ** 2) / k) - 1);
+          if (d < off) (off = d), (best = c);
+        }
+        if (best) agreed.push(best);
+      }
+      if (agreed.length > most) (most = agreed.length), (points = agreed);
+    }
+    if (most < rays * 0.6) return null;
+  }
   let lie: Lie | null = null;
-  for (let round = 0; round < 4; round++) {
-    if (points.length < rays * 0.45) return null;
+  for (let round = 0; round < 7; round++) {
+    if (points.length < rays * 0.4) return null;
     // A u² + B uv + C v² + D u + E v = 1 through the points, as nearly as may be.
     const m = Array.from({ length: 5 }, () => new Array<number>(5).fill(0));
     const rhs = new Array<number>(5).fill(0);
@@ -331,7 +401,7 @@ function rim(g: Grey, rough: Lie, from: number, to: number): Lie | null {
     // How far each point lies off the oval, as a part of its size; the far ones are dropped.
     const off = points.map((p) => Math.abs(Math.sqrt((A * (p.u - uc) ** 2 + B * (p.u - uc) * (p.v - vc) + C * (p.v - vc) ** 2) / k) - 1));
     const usual = [...off].sort((p, q) => p - q)[Math.floor(off.length / 2)] as number;
-    const kept = points.filter((_, i) => (off[i] as number) <= Math.max(0.012, 2.5 * usual));
+    const kept = points.filter((_, i) => (off[i] as number) <= Math.max(0.012, 2 * usual));
     if (kept.length === points.length) break;
     points = kept;
   }
@@ -344,7 +414,7 @@ function spokes(g: Grey, lie: Lie, ring: number): number[] {
   const round = new Float32Array(n);
   for (let k = 0; k < n; k++) {
     const angle = (k / n) * 2 * Math.PI;
-    round[k] = at(g, ...place(lie, ring + SIGN_SPOKE - 0.012, angle)) + at(g, ...place(lie, ring + SIGN_SPOKE + 0.004, angle));
+    round[k] = at(g, ...place(lie, ring + SIGN_HALF + SIGN_SPOKE * 0.35, angle)) + at(g, ...place(lie, ring + SIGN_HALF + SIGN_SPOKE * 0.7, angle));
   }
   const smooth = Array.from({ length: n }, (_, k) => (round[(k + n - 1) % n] as number) + 2 * (round[k] as number) + (round[(k + 1) % n] as number));
   const order = smooth.map((v, k) => ({ v, k })).sort((p, q) => q.v - p.v);
@@ -359,7 +429,7 @@ function ringBits(g: Grey, lie: Lie, ring: number, spoke: number): Uint8Array {
     let sum = 0;
     for (const da of [0.3, 0.5, 0.7]) {
       const angle = spoke + ((i + da) / SIGN_CELLS) * 2 * Math.PI;
-      for (const dr of [-0.012, 0, 0.012]) sum += at(g, ...place(lie, ring + dr, angle));
+      for (const dr of [-0.014, 0, 0.014]) sum += at(g, ...place(lie, ring + dr, angle));
     }
     lit[i] = sum;
   }
@@ -373,19 +443,21 @@ function ringBits(g: Grey, lie: Lie, ring: number, spoke: number): Uint8Array {
  * The sign must be whole and near the middle of the picture, light on dark, and not mirrored.
  */
 export function readSign(picture: Grey): { address: Uint8Array; kind: SignKind } | null {
-  const g = shrink(picture, 800);
-  // From each rough place the circle round the sign is found point by point and an oval laid through the points;
-  // the oval that fits best by the sharp measure is the one made exact.
-  let start: Lie | null = null;
-  let most = 0;
+  const g = shrink(picture, 1280);
+  // From each rough place the circle round the sign is found point by point and an oval laid through the points,
+  // three times over, each time from the oval before. The ovals are then tried from the best fit down: a wrong one
+  // fails its check sum and the next is read.
+  const ovals: { lie: Lie; score: number }[] = [];
   for (const rough of seek(g)) {
     let lie: Lie | null = rough;
-    for (let pass = 0; pass < 2 && lie; pass++) lie = rim(g, lie, pass === 0 ? 1.6 : 1.2, pass === 0 ? 0.55 : 0.85);
+    for (const [from, to, near] of [[1.45, 0.6, false], [1.25, 0.78, true], [1.12, 0.9, true]] as const) lie = lie && rim(g, lie, from, to, near);
     if (!lie) continue;
-    const score = fit(g, lie, 48, true);
-    if (score > most) (most = score), (start = lie);
+    const found: Lie = lie;
+    if (ovals.some((o) => Math.hypot(o.lie.cx - found.cx, o.lie.cy - found.cy) < found.a * 0.03 && Math.abs(o.lie.a - found.a) < found.a * 0.03)) continue;
+    ovals.push({ lie: found, score: fit(g, found, 48, true) });
   }
-  for (const rough of start ? [start] : []) {
+  ovals.sort((p, q) => q.score - p.score);
+  for (const { lie: rough } of ovals.slice(0, 4)) {
     const lie = settle(g, rough, [0.006, 0.003, 0.0015], true);
     const tries = SIGN_RINGS.map((ring) => spokes(g, lie, ring).map((spoke) => ringBits(g, lie, ring, spoke)));
     // The likeliest spoke of every ring first; then each mix with the second likeliest.

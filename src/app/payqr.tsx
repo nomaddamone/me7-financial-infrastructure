@@ -245,8 +245,13 @@ function readFrame(source: CanvasImageSource, width: number, height: number, can
   try {
     text = decodeQR({ width: image.width, height: image.height, data: image.data });
   } catch {
-    // No QR code: it may be me7's own sign.
-    const sign = readSign(greyOf(image.data, image.width, image.height, 800));
+    // No QR code: it may be me7's own sign. Its lines are fine, so it is looked for in the picture at its full size.
+    const full = Math.min(1, 1280 / Math.max(width, height));
+    canvas.width = Math.round(width * full);
+    canvas.height = Math.round(height * full);
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    const whole = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const sign = readSign(greyOf(whole.data, whole.width, whole.height, 1280));
     if (!sign) return null;
     return { request: { network: 'evm', address: toChecksumAddress(bytesToHex(sign.address)), ...(sign.kind === 'usdc-base' ? { asset: 'usdc-base' } : {}) } };
   }
@@ -298,7 +303,8 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
       setState('no-camera');
       return;
     }
-    media.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).then(
+    // A sharp picture is asked for: the default of many phones is too coarse for a code held at arm's length.
+    media.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }).then(
       (s) => {
         if (gone) return s.getTracks().forEach((track) => track.stop());
         stream = s;
