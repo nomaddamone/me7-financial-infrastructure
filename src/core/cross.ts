@@ -134,6 +134,18 @@ export function readCrossStatus(answer: unknown): CrossState | null {
 }
 
 /**
+ * Whether the service has seen less arrive than the order needs, and how much it has seen, in the smallest units of
+ * the coin paid with. Null when the order is not short; `seen` is null when the service does not say how much came.
+ */
+export function readCrossShort(answer: unknown): { seen: bigint | null } | null {
+  const a = (typeof answer === 'object' && answer !== null ? answer : {}) as { status?: unknown; swapDetails?: { depositedAmount?: unknown } | null };
+  if (a.status !== 'INCOMPLETE_DEPOSIT') return null;
+  const said = a.swapDetails?.depositedAmount;
+  const seen = typeof said === 'string' && /^[0-9]{1,40}$/.test(said) ? BigInt(said) : null;
+  return { seen: seen !== null && seen > 0n ? seen : null };
+}
+
+/**
  * What the service says about the order behind a deposit address: which coins, and the address the
  * result is delivered to. me7's own service asks this before it gives a crossing its lower fee, so
  * that the lower fee cannot be had for any other payment. Null when the answer names no such order.

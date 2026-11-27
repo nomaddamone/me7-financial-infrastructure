@@ -188,3 +188,14 @@ button.aline:focus-visible {
   grid-template-columns: 1fr auto;
   gap: 8px;
 }
+/* Two buttons: they share a row of their own under the field. */
+.field-row--two {
+  grid-template-columns: 1fr 1fr;
+}
+.field-row--two > .input {
+  grid-column: 1 / -1;
+}
+.whisper {
+  display: grid;
+  gap: 8px;
+}

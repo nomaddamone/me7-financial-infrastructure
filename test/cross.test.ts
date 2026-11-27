@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { crossBudget, crossMaxIn, crossQuoteRequest, readCrossQuote, readCrossStatus, type CrossOrder } from '../src/core/cross.ts';
+import { crossBudget, crossMaxIn, crossQuoteRequest, readCrossQuote, readCrossShort, readCrossStatus, type CrossOrder } from '../src/core/cross.ts';
 
 const LIMITS = { maxOverBps: 200n, maxOverFlat: 2_000_000n };
 const ORDER: CrossOrder = {
@@ -194,5 +194,16 @@ describe('a swap between networks', () => {
   it('reads what was delivered', () => {
     expect(readCrossDelivered({ status: 'SUCCESS', swapDetails: { amountOut: '99880000' } })).toBe(99_880_000n);
     expect(readCrossDelivered({ status: 'PROCESSING' })).toBeNull();
+  });
+
+  it('tells a deposit that came short from one that has not come', () => {
+    expect(readCrossShort({ status: 'PENDING_DEPOSIT' })).toBeNull();
+    expect(readCrossShort({ status: 'PROCESSING', swapDetails: { depositedAmount: '338000000' } })).toBeNull();
+    expect(readCrossShort({ status: 'INCOMPLETE_DEPOSIT', swapDetails: { depositedAmount: '338000000' } })).toEqual({ seen: 338_000_000n });
+    // The service may not say how much came, or say it oddly: the payer is still told the deposit is short.
+    for (const details of [undefined, null, {}, { depositedAmount: '0' }, { depositedAmount: 338 }, { depositedAmount: '-5' }]) {
+      expect(readCrossShort({ status: 'INCOMPLETE_DEPOSIT', swapDetails: details })).toEqual({ seen: null });
+    }
+    expect(readCrossShort(null)).toBeNull();
   });
 });

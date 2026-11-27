@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { buildPayText } from '../core/payqr.ts';
 import { PAY_ORIGINS, refundFor, type PayAsk, type PayOrigin, type PayQuote } from '../core/payrequest.ts';
 import { formatUnits } from '../net/balances.ts';
-import { fetchCrossState } from '../net/cross.ts';
+import { fetchCrossStanding } from '../net/cross.ts';
 import { CROSS, NET } from '../net/endpoints.ts';
 import { fetchPayQuote } from '../net/payrequest.ts';
 import { fetchErc20Balance, fetchUsdPrices, type UsdPrices } from '../net/send.ts';
@@ -40,6 +40,8 @@ export function PayPage({ t, ask, onLeave }: { t: Dict; ask: PayAsk; onLeave: ()
   // The order placed for real: the address to pay to, how much, and until when it holds.
   const [placed, setPlaced] = useState<{ origin: PayOrigin; quote: PayQuote; deposit: string; until: number; refundTo: string } | null>(null);
   const [state, setState] = useState<CrossState | null>(null);
+  // Less has come than the order needs: the payer is told so, and how much is missing when the service says how much came.
+  const [short, setShort] = useState<{ seen: bigint | null } | null>(null);
   const [now, setNow] = useState(Date.now());
   // Paying straight: what the address held when the page opened, and whether the amount has come on top of it.
   const [arrived, setArrived] = useState(false);
@@ -116,7 +118,7 @@ export function PayPage({ t, ask, onLeave }: { t: Dict; ask: PayAsk; onLeave: ()
   useEffect(() => {
     if (!placed || state === 'done' || state === 'refunded' || state === 'failed') return;
     let live = true;
-    const look = () => void fetchCrossState(CROSS.api, placed.deposit).then((s) => live && s && setState(s));
+    const look = () => void fetchCrossStanding(CROSS.api, placed.deposit).then((s) => live && s && (setState(s.state), setShort(s.short)));
     const id = setInterval(look, 8000);
     return () => {
       live = false;
@@ -135,6 +137,7 @@ export function PayPage({ t, ask, onLeave }: { t: Dict; ask: PayAsk; onLeave: ()
       const quote = await fetchPayQuote(CROSS.api, ask, origin, refundTo, until, CROSS.slippageBps, false, usdOf(origin));
       if (!quote.deposit) throw new Error('no deposit address');
       setState(null);
+      setShort(null);
       setPlaced({ origin, quote, deposit: quote.deposit, until, refundTo });
     } catch (err) {
       setError(why(err));
@@ -185,6 +188,9 @@ export function PayPage({ t, ask, onLeave }: { t: Dict; ask: PayAsk; onLeave: ()
     const left = placed.until - now;
     const amount = formatUnits(placed.quote.amountIn, o.decimals, o.decimals);
     const over = state === 'done' || state === 'refunded' || state === 'failed';
+    // What is still missing, when the service has said how much came and it is less than the order takes.
+    const missing = short && short.seen !== null && short.seen < placed.quote.amountIn ? placed.quote.amountIn - short.seen : null;
+    const due = missing !== null ? formatUnits(missing, o.decimals, o.decimals) : amount;
     return shell(
       <>
         {state === 'done' ? (
@@ -197,12 +203,20 @@ export function PayPage({ t, ask, onLeave }: { t: Dict; ask: PayAsk; onLeave: ()
           </p>
         ) : (
           <>
+            {short && left > 0 && (
+              <p class="alert" role="status">
+                {missing !== null && short.seen !== null
+                  ? r.stShort.replace('{got}', formatUnits(short.seen, o.decimals, o.decimals)).replace('{more}', due).replace(/\{coin\}/g, o.ticker)
+                  : r.stShortBare}{' '}
+                <code>{placed.refundTo}</code>
+              </p>
+            )}
             <div class="pay-due">
-              <span class="field-label">{r.sendExact}</span>
+              <span class="field-label">{missing !== null ? r.sendMore : r.sendExact}</span>
               <span class="pay-due-sum">
-                {amount} <b>{o.ticker}</b> <span class="dim">{o.net.toLowerCase()}</span>
+                {due} <b>{o.ticker}</b> <span class="dim">{o.net.toLowerCase()}</span>
               </span>
-              <CopyButton t={t} value={amount} />
+              <CopyButton t={t} value={due} />
             </div>
             <span class="field-label">{r.sendTo.replace('{net}', o.net)}</span>
             <Qr text={o.chain === 'evm' ? placed.deposit : buildPayText({ network: o.chain, address: placed.deposit })} />
@@ -212,9 +226,9 @@ export function PayPage({ t, ask, onLeave }: { t: Dict; ask: PayAsk; onLeave: ()
               <span class={left > 0 ? 'pay-clock' : 'pay-clock bad'}>{left > 0 ? r.timeLeft.replace('{time}', clock(left)) : r.expired}</span>
             </div>
             <p class="pay-state" role="status">
-              <Spinner /> {state === 'working' ? r.stWorking : r.stWaiting}
+              <Spinner /> {state === 'working' ? r.stWorking : short ? r.stWaitingMore : r.stWaiting}
             </p>
-            <p class="alert">{r.oneTime.replace('{net}', o.net).replace('{coin}', o.ticker)}</p>
+            {!short && <p class="alert">{r.oneTime.replace('{net}', o.net).replace('{coin}', o.ticker)}</p>}
             <p class="note">
               {r.surplus} <code>{placed.refundTo}</code>
             </p>
@@ -222,7 +236,7 @@ export function PayPage({ t, ask, onLeave }: { t: Dict; ask: PayAsk; onLeave: ()
           </>
         )}
         {!over && left > 0 && <p class="note">{r.backNote}</p>}
-        <button class="btn" onClick={() => (setPlaced(null), setState(null), setWay(null))}>
+        <button class="btn" onClick={() => (setPlaced(null), setState(null), setShort(null), setWay(null))}>
           {r.again}
         </button>
       </>,

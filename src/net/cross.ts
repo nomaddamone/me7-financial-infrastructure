@@ -1,4 +1,4 @@
-import { crossQuoteRequest, crossSwapRequest, readCrossDelivered, readCrossQuote, readCrossStatus, readCrossSwapQuote, type CrossLimits, type CrossOrder, type CrossQuote, type CrossState, type SwapOrder, type SwapQuote } from '../core/cross.ts';
+import { crossQuoteRequest, crossSwapRequest, readCrossDelivered, readCrossQuote, readCrossShort, readCrossStatus, readCrossSwapQuote, type CrossLimits, type CrossOrder, type CrossQuote, type CrossState, type SwapOrder, type SwapQuote } from '../core/cross.ts';
 
 async function ask(url: string, init?: RequestInit): Promise<unknown> {
   const controller = new AbortController();
@@ -30,6 +30,17 @@ export async function tellCrossDeposit(api: string, depositAddress: string, txHa
 export async function fetchCrossState(api: string, depositAddress: string): Promise<CrossState | null> {
   try {
     return readCrossStatus(await ask(`${api}/status?depositAddress=${depositAddress}`));
+  } catch {
+    return null;
+  }
+}
+
+/** The same, for a page that also tells a payer who sent too little so: `short` is set when less has come than the order needs. */
+export async function fetchCrossStanding(api: string, depositAddress: string): Promise<{ state: CrossState; short: { seen: bigint | null } | null } | null> {
+  try {
+    const answer = await ask(`${api}/status?depositAddress=${depositAddress}`);
+    const state = readCrossStatus(answer);
+    return state ? { state, short: readCrossShort(answer) } : null;
   } catch {
     return null;
   }

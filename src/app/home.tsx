@@ -69,6 +69,7 @@ import { HeldNote } from './held.tsx';
 import { markTold, quarantined, quarantineOf, syncQuarantine, type Quarantined } from './quarantine.ts';
 import { useOwnName } from './ownname.ts';
 import { PassCard, usePassSync } from './passcard.tsx';
+import { Hearer, heardNote, Whisper } from './whisper.tsx';
 import { addressCode } from '../core/payqr.ts';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, feeAssetOf, type AssetDef } from './assets.ts';
@@ -620,6 +621,8 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
           <BrandQr text={payText(current.id, current.address, ask)} reveal={current.address} />
           <AddressLine t={t} address={current.address} />
           <AddressCode t={t} address={current.address} note />
+          {/* The changing address can be said as sound to a sender standing by. */}
+          {current.id === 'usdc' && <Whisper t={t} address={current.address} />}
           {/* A name for the main address. It is offered beside USDC too, where people ask for something short to give out. */}
           {(current.id === 'evm' || current.id === 'usdc') && NET.base && NET.mode === 'mainnet' && (
             <span class="name-found">
@@ -936,6 +939,7 @@ function Send({
   // USDT on Tron can also be paid out of USDC on Base, by way of a Tron address used once.
   const [cross, setCross] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [hearing, setHearing] = useState(false);
   const [scanned, setScanned] = useState('');
   // What kind of address is in the field. An address belongs to one family of networks, so the coins of the
   // others cannot be sent to it: their buttons are greyed out, and a coin that no longer fits is changed.
@@ -1162,6 +1166,13 @@ function Send({
     setScanned(says.replace('{coin}', `${next.ticker} ${next.net}`));
   };
   if (scanning) return <Scanner t={t} onResult={applyScan} onClose={() => setScanning(false)} />;
+  // An address heard as sound is a changing address for USDC on Base: it fills the form as a scanned code would, and its code is shown to be compared.
+  const applyHeard = (address: string) => {
+    setHearing(false);
+    applyScan({ network: 'evm', address, asset: 'usdc-base' });
+    setScanned(heardNote(t, address));
+  };
+  if (hearing) return <Hearer t={t} onResult={applyHeard} onClose={() => setHearing(false)} />;
 
   const send = async () => {
     if (!prepared) return;
@@ -1397,7 +1408,7 @@ function Send({
         <span class="field-label">
           {t.sendTo} <span class="dim">({asset.net})</span>
         </span>
-        <span class="field-row">
+        <span class={NET.base ? 'field-row field-row--two' : 'field-row'}>
           <input
             class="input"
             type="text"
@@ -1411,6 +1422,11 @@ function Send({
           <button type="button" class="btn" onClick={() => setScanning(true)}>
             {t.pay.scan}
           </button>
+          {NET.base && (
+            <button type="button" class="btn" onClick={() => setHearing(true)}>
+              {t.whisper.listen}
+            </button>
+          )}
         </span>
         {scanned && <span class="dim">{scanned}</span>}
         {named === 'looking' && (
