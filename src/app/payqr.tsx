@@ -232,7 +232,8 @@ export function AddressCode({ t, address, note }: { t: Dict; address: string; no
 type Found = { request: PayRequest } | { other: true };
 
 /** Read whatever is in a picture: a payment, something else, or nothing. */
-function readFrame(source: CanvasImageSource, width: number, height: number, canvas: HTMLCanvasElement): Found | null {
+function readFrame(source: CanvasImageSource, width: number, height: number, canvas: HTMLCanvasElement, told?: string[]): Found | null {
+  const started = performance.now();
   // A frame larger than this only slows the search down; codes are found just as well smaller.
   const scale = Math.min(1, 800 / Math.max(width, height));
   canvas.width = Math.round(width * scale);
@@ -251,7 +252,9 @@ function readFrame(source: CanvasImageSource, width: number, height: number, can
     canvas.height = Math.round(height * full);
     ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
     const whole = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const sign = readSign(greyOf(whole.data, whole.width, whole.height, 1280));
+    const afterQr = performance.now();
+    const sign = readSign(greyOf(whole.data, whole.width, whole.height, 1280), told);
+    told?.push(`frame ${width}x${height}: no QR in ${Math.round(afterQr - started)} ms, sign looked for in ${Math.round(performance.now() - afterQr)} ms`);
     if (!sign) return null;
     return { request: { network: 'evm', address: toChecksumAddress(bytesToHex(sign.address)), ...(sign.kind === 'usdc-base' ? { asset: 'usdc-base' } : {}) } };
   }
@@ -275,6 +278,11 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
   const dust = useRef<HTMLCanvasElement>(null);
   const work = useRef<HTMLCanvasElement | null>(null);
   const caught = useRef(false);
+  // me7.network/#debug: the scanner reads on without closing and writes out what it saw in each picture, to be copied
+  // and sent when a sign is not read on some device. Nothing is sent anywhere by itself.
+  const debug = useRef(location.hash === '#debug').current;
+  const seen = useRef({ frames: 0, read: 0, about: '', last: [] as string[] });
+  const [report, setReport] = useState('');
   const [state, setState] = useState<'starting' | 'scanning' | 'no-camera'>('starting');
   const [hint, setHint] = useState('');
 
@@ -315,7 +323,18 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
         setState('scanning');
         timer = window.setInterval(() => {
           if (caught.current || !work.current || el.videoWidth === 0) return;
-          take(readFrame(el, el.videoWidth, el.videoHeight, work.current));
+          if (!debug) return void take(readFrame(el, el.videoWidth, el.videoHeight, work.current));
+          const told: string[] = [];
+          const found = readFrame(el, el.videoWidth, el.videoHeight, work.current, told);
+          const log = seen.current;
+          log.frames++;
+          if (found && 'request' in found) log.read++;
+          if (!log.about) {
+            const set = s.getVideoTracks()[0]?.getSettings() ?? {};
+            log.about = `camera ${String(set.width)}x${String(set.height)} at ${String(set.frameRate)} · video ${el.videoWidth}x${el.videoHeight} · ${navigator.userAgent}`;
+          }
+          log.last = [...log.last, `#${log.frames}${found ? ('request' in found ? ' READ' : ' other code') : ''}\n${told.join('\n') || '(a QR code was read)'}`].slice(-5);
+          setReport(`me7 scan debug · pictures ${log.frames} · read ${log.read}\n${log.about}\n\n${log.last.join('\n\n')}`);
         }, 200);
       },
       () => !gone && setState('no-camera'),
@@ -462,6 +481,14 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
         {state === 'no-camera' && <p class="scanner-wait">{p.noCamera}</p>}
       </div>
       <p class={hint ? 'alert' : 'note'}>{hint || p.scanNote}</p>
+      {debug && (
+        <>
+          <button type="button" class="btn" onClick={() => void navigator.clipboard?.writeText(report).catch(() => undefined)}>
+            copy the debug log
+          </button>
+          <pre class="scan-debug">{report}</pre>
+        </>
+      )}
       <div class="row">
         <button type="button" class="btn" onClick={onClose}>
           {t.back}

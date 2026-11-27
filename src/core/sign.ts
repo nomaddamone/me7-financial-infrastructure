@@ -120,6 +120,11 @@ function at(g: Grey, x: number, y: number): number {
   return ((d[i] as number) * (1 - fx) + (d[i + 1] as number) * fx) * (1 - fy) + ((d[i + g.width] as number) * (1 - fx) + (d[i + g.width + 1] as number) * fx) * fy;
 }
 
+/** Notes on what the reader saw, kept only when a caller asks for them: for finding out why a sign is not read on some device. */
+let notes: string[] | null = null;
+const note = (line: () => string) => void (notes && notes.push(line()));
+const pc = (v: number, of: number) => Math.round((100 * v) / of);
+
 /** Where a sign lies in a picture: its middle, its two half-widths (a sign seen at a slant is an oval) and how the oval is turned. */
 interface Lie {
   cx: number;
@@ -297,7 +302,10 @@ function rim(g: Grey, rough: Lie, from: number, to: number, near: boolean): Lie 
   all.sort((p, q) => p - q);
   const dark = all[Math.floor(all.length * 0.2)] as number;
   const bright = all[Math.floor(all.length * 0.97)] as number;
-  if (bright - dark < 12) return null;
+  if (bright - dark < 12) {
+    note(() => `  rim${near ? '+' : ''}: flat, dark ${Math.round(dark)} bright ${Math.round(bright)}`);
+    return null;
+  }
   const edge = dark + 0.4 * (bright - dark);
   // Every bright line each spoke crosses: where it is, as a place on the sign with the rough lie's size as one.
   const crossed: { u: number; v: number; t: number }[][] = walks.map((walk, k) => {
@@ -326,7 +334,10 @@ function rim(g: Grey, rough: Lie, from: number, to: number, near: boolean): Lie 
     let seed = 12345;
     const chance = (n: number) => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0), Math.floor((seed / 0x100000000) * n));
     const live = crossed.map((list, k) => ({ list, k })).filter((c) => c.list.length > 0);
-    if (live.length < rays * 0.5) return null;
+    if (live.length < rays * 0.5) {
+      note(() => `  rim: only ${live.length}/${rays} spokes cross a bright line (dark ${Math.round(dark)} bright ${Math.round(bright)})`);
+      return null;
+    }
     let most = 0;
     for (let go = 0; go < 260; go++) {
       const five: { u: number; v: number }[] = [];
@@ -365,6 +376,7 @@ function rim(g: Grey, rough: Lie, from: number, to: number, near: boolean): Lie 
       }
       if (agreed.length > most) (most = agreed.length), (points = agreed);
     }
+    note(() => `  rim: vote ${most}/${live.length} of ${rays} (dark ${Math.round(dark)} bright ${Math.round(bright)})`);
     if (most < rays * 0.6) return null;
   }
   let lie: Lie | null = null;
@@ -420,6 +432,7 @@ function spokes(g: Grey, lie: Lie, ring: number): number[] {
   const order = smooth.map((v, k) => ({ v, k })).sort((p, q) => q.v - p.v);
   const first = order[0] as { k: number };
   const second = order.find((o) => Math.min(Math.abs(o.k - first.k), n - Math.abs(o.k - first.k)) > 6) as { k: number };
+  note(() => `    spoke ${ring}: first ${Math.round((order[0] as { v: number }).v)} second ${Math.round((second as unknown as { v: number }).v)} usual ${Math.round((order[n >> 1] as { v: number }).v)}`);
   return [first.k, second.k].map((k) => (k / n) * 2 * Math.PI);
 }
 
@@ -434,7 +447,10 @@ function ringBits(g: Grey, lie: Lie, ring: number, spoke: number): Uint8Array {
     lit[i] = sum;
   }
   const sorted = [...lit].sort((p, q) => p - q);
-  const edge = ((sorted[Math.floor(SIGN_CELLS * 0.1)] as number) + (sorted[Math.floor(SIGN_CELLS * 0.9)] as number)) / 2;
+  const low = sorted[Math.floor(SIGN_CELLS * 0.1)] as number;
+  const high = sorted[Math.floor(SIGN_CELLS * 0.9)] as number;
+  const edge = (low + high) / 2;
+  note(() => `    ring ${ring}: gap ${Math.round(low / 9)} arc ${Math.round(high / 9)} unsure ${lit.filter((v) => Math.abs(v - edge) < (high - low) * 0.2).length}/${SIGN_CELLS}`);
   return Uint8Array.from(lit, (v) => (v > edge ? 1 : 0));
 }
 
@@ -442,31 +458,51 @@ function ringBits(g: Grey, lie: Lie, ring: number, spoke: number): Uint8Array {
  * Look for a sign in a picture and read it. Null when there is none, or when what was read fails its check sum.
  * The sign must be whole and near the middle of the picture, light on dark, and not mirrored.
  */
-export function readSign(picture: Grey): { address: Uint8Array; kind: SignKind } | null {
+export function readSign(picture: Grey, told?: string[]): { address: Uint8Array; kind: SignKind } | null {
+  notes = told ?? null;
+  try {
+    return look(picture);
+  } finally {
+    notes = null;
+  }
+}
+
+function look(picture: Grey): { address: Uint8Array; kind: SignKind } | null {
   const g = shrink(picture, 1280);
+  note(() => `sign: picture ${g.width}x${g.height}`);
   // From each rough place the circle round the sign is found point by point and an oval laid through the points,
   // three times over, each time from the oval before. The ovals are then tried from the best fit down: a wrong one
   // fails its check sum and the next is read.
   const ovals: { lie: Lie; score: number }[] = [];
   for (const rough of seek(g)) {
+    note(() => ` rough: middle ${pc(rough.cx, g.width)}%,${pc(rough.cy, g.height)}% size ${pc(rough.a, Math.min(g.width, g.height))}%`);
     let lie: Lie | null = rough;
     for (const [from, to, near] of [[1.45, 0.6, false], [1.25, 0.78, true], [1.12, 0.9, true]] as const) lie = lie && rim(g, lie, from, to, near);
-    if (!lie) continue;
+    if (!lie) {
+      note(() => '  no oval');
+      continue;
+    }
     const found: Lie = lie;
     if (ovals.some((o) => Math.hypot(o.lie.cx - found.cx, o.lie.cy - found.cy) < found.a * 0.03 && Math.abs(o.lie.a - found.a) < found.a * 0.03)) continue;
     ovals.push({ lie: found, score: fit(g, found, 48, true) });
   }
   ovals.sort((p, q) => q.score - p.score);
-  for (const { lie: rough } of ovals.slice(0, 4)) {
+  note(() => ` ovals: ${ovals.length}`);
+  for (const { lie: rough, score } of ovals.slice(0, 4)) {
     const lie = settle(g, rough, [0.006, 0.003, 0.0015], true);
+    note(() => `  oval: middle ${pc(lie.cx, g.width)}%,${pc(lie.cy, g.height)}% size ${Math.round(lie.a)}x${Math.round(lie.b)}px narrow ${(Math.min(lie.a, lie.b) / Math.max(lie.a, lie.b)).toFixed(2)} fit ${Math.round(score)}`);
     const tries = SIGN_RINGS.map((ring) => spokes(g, lie, ring).map((spoke) => ringBits(g, lie, ring, spoke)));
     // The likeliest spoke of every ring first; then each mix with the second likeliest.
     for (let mask = 0; mask < 8; mask++) {
       const bits = new Uint8Array(SIGN_RINGS.length * SIGN_CELLS);
       tries.forEach((ring, k) => bits.set(ring[(mask >> k) & 1] as Uint8Array, k * SIGN_CELLS));
       const read = readSignBits(bits);
-      if (read) return read;
+      if (read) {
+        note(() => `  READ (spoke mix ${mask})`);
+        return read;
+      }
     }
+    note(() => '  check sum failed');
   }
   return null;
 }
