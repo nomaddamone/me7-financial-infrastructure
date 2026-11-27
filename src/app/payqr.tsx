@@ -232,8 +232,7 @@ export function AddressCode({ t, address, note }: { t: Dict; address: string; no
 type Found = { request: PayRequest } | { other: true };
 
 /** Read whatever is in a picture: a payment, something else, or nothing. */
-function readFrame(source: CanvasImageSource, width: number, height: number, canvas: HTMLCanvasElement, told?: string[]): Found | null {
-  const started = performance.now();
+function readFrame(source: CanvasImageSource, width: number, height: number, canvas: HTMLCanvasElement): Found | null {
   // A frame larger than this only slows the search down; codes are found just as well smaller.
   const scale = Math.min(1, 800 / Math.max(width, height));
   canvas.width = Math.round(width * scale);
@@ -252,9 +251,7 @@ function readFrame(source: CanvasImageSource, width: number, height: number, can
     canvas.height = Math.round(height * full);
     ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
     const whole = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const afterQr = performance.now();
-    const sign = readSign(greyOf(whole.data, whole.width, whole.height, 1280), told);
-    told?.push(`frame ${width}x${height}: no QR in ${Math.round(afterQr - started)} ms, sign looked for in ${Math.round(performance.now() - afterQr)} ms`);
+    const sign = readSign(greyOf(whole.data, whole.width, whole.height, 1280));
     if (!sign) return null;
     return { request: { network: 'evm', address: toChecksumAddress(bytesToHex(sign.address)), ...(sign.kind === 'usdc-base' ? { asset: 'usdc-base' } : {}) } };
   }
@@ -278,12 +275,6 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
   const dust = useRef<HTMLCanvasElement>(null);
   const work = useRef<HTMLCanvasElement | null>(null);
   const caught = useRef(false);
-  // me7.network/#debug: the scanner reads on without closing and writes out what it saw in each picture, to be copied
-  // and sent when a sign is not read on some device. Nothing is sent anywhere by itself.
-  const debug = useRef(location.hash === '#debug').current;
-  const fresh = () => ({ frames: 0, read: 0, failed: 0, none: 0, about: '', lastRead: '', lastFailed: [] as string[], nearest: '', nearestVote: 0 });
-  const seen = useRef(fresh());
-  const [report, setReport] = useState('');
   const [state, setState] = useState<'starting' | 'scanning' | 'no-camera'>('starting');
   const [hint, setHint] = useState('');
 
@@ -324,38 +315,7 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
         setState('scanning');
         timer = window.setInterval(() => {
           if (caught.current || !work.current || el.videoWidth === 0) return;
-          if (!debug) return void take(readFrame(el, el.videoWidth, el.videoHeight, work.current));
-          const told: string[] = [];
-          const found = readFrame(el, el.videoWidth, el.videoHeight, work.current, told);
-          const log = seen.current;
-          log.frames++;
-          if (!log.about) {
-            const set = s.getVideoTracks()[0]?.getSettings() ?? {};
-            log.about = `camera ${String(set.width)}x${String(set.height)} at ${String(set.frameRate)} · video ${el.videoWidth}x${el.videoHeight} · ${navigator.userAgent}`;
-          }
-          // The pictures worth sending are not the last ones (the phone is turned away to press the button) but one
-          // of each kind: a sign read, a sign found and read wrong, and the nearest the search came to finding one.
-          const text = `#${log.frames}\n${told.join('\n') || '(a QR code was read)'}`;
-          if (found && 'request' in found) {
-            log.read++;
-            log.lastRead = text;
-          } else if (told.some((line) => line.includes(' oval: '))) {
-            log.failed++;
-            log.lastFailed = [...log.lastFailed, text].slice(-3);
-          } else {
-            log.none++;
-            const vote = Math.max(0, ...told.map((line) => Number(/vote (\d+)\//.exec(line)?.[1] ?? 0)));
-            if (vote >= log.nearestVote) (log.nearestVote = vote), (log.nearest = text);
-          }
-          setReport(
-            [
-              `me7 scan debug · pictures ${log.frames} · read ${log.read} · found but check sum failed ${log.failed} · no sign found ${log.none}`,
-              log.about,
-              `== found but check sum failed, the last ${log.lastFailed.length} ==\n${log.lastFailed.join('\n\n') || '(none)'}`,
-              `== no sign found: the nearest miss, vote ${log.nearestVote}/72 ==\n${log.nearest || '(none)'}`,
-              `== the last one read ==\n${log.lastRead || '(none)'}`,
-            ].join('\n\n'),
-          );
+          take(readFrame(el, el.videoWidth, el.videoHeight, work.current));
         }, 200);
       },
       () => !gone && setState('no-camera'),
@@ -502,19 +462,6 @@ export function Scanner({ t, onResult, onClose }: { t: Dict; onResult: (request:
         {state === 'no-camera' && <p class="scanner-wait">{p.noCamera}</p>}
       </div>
       <p class={hint ? 'alert' : 'note'}>{hint || p.scanNote}</p>
-      {debug && (
-        <>
-          <div class="row">
-            <button type="button" class="btn" onClick={() => void navigator.clipboard?.writeText(report).catch(() => undefined)}>
-              copy the debug log
-            </button>
-            <button type="button" class="btn" onClick={() => ((seen.current = fresh()), setReport(''))}>
-              start over
-            </button>
-          </div>
-          <pre class="scan-debug">{report}</pre>
-        </>
-      )}
       <div class="row">
         <button type="button" class="btn" onClick={onClose}>
           {t.back}

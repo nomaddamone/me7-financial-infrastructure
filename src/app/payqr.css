@@ -199,17 +199,6 @@ button.aline:focus-visible {
   display: grid;
   gap: 8px;
 }
-/* What the scanner saw, when it is asked to tell (me7.network/#debug). */
-.scan-debug {
-  margin: 0;
-  max-height: 260px;
-  overflow: auto;
-  font-size: 10px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  user-select: text;
-  -webkit-user-select: text;
-}
 /* How much of the whisper has been said. */
 .whisper-bar {
   appearance: none;
