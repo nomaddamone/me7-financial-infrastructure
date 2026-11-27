@@ -68,7 +68,7 @@ import { AmlCheck } from './aml.tsx';
 import { HeldNote } from './held.tsx';
 import { markTold, quarantined, quarantineOf, syncQuarantine, type Quarantined } from './quarantine.ts';
 import { useOwnName } from './ownname.ts';
-import { PassCard } from './passcard.tsx';
+import { PassCard, usePassSync } from './passcard.tsx';
 import { addressCode } from '../core/payqr.ts';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
 import { ASSETS, BASE_L1_RESERVE, evmOf, feeAssetOf, type AssetDef } from './assets.ts';
@@ -3053,6 +3053,7 @@ function Card({ t }: { t: Dict }) {
 type Tab = 'pocket' | 'vault' | 'peer' | 'card';
 
 export function Home({ t, wallet, onExit }: { t: Dict; wallet: Wallet; onExit: () => void }) {
+  usePassSync(t, wallet);
   const [tab, setTab] = useState<Tab>('pocket');
   // The address book is fetched once the wallet is open, so the contacts are there by the time money is sent.
   useEffect(() => {

@@ -96,10 +96,20 @@ export function loadRotation(wallet: Wallet, fresh = false): Promise<Rotation> {
   const result = scan(wallet);
   scans.set(wallet.evm, { at: Date.now(), result });
   result.then(
-    (r) => lastOwners.set(wallet.evm, [...r.holdings.filter((h) => h.index < STEALTH_INDEX).slice(0, r.fresh.index + 2), ...r.holdings.filter((h) => h.index >= STEALTH_INDEX)].map((h) => h.address)),
+    (r) => {
+      lastOwners.set(wallet.evm, [...r.holdings.filter((h) => h.index < STEALTH_INDEX).slice(0, r.fresh.index + 2), ...r.holdings.filter((h) => h.index >= STEALTH_INDEX)].map((h) => h.address));
+      for (const heard of watchers) heard(wallet, r);
+    },
     () => scans.delete(wallet.evm),
   );
   return result;
+}
+
+const watchers = new Set<(wallet: Wallet, rotation: Rotation) => void>();
+/** Be told each time a wallet's addresses are read anew. Returns what stops the telling. */
+export function onRotation(heard: (wallet: Wallet, rotation: Rotation) => void): () => void {
+  watchers.add(heard);
+  return () => void watchers.delete(heard);
 }
 
 /** Drop what is remembered of the addresses, so that the next look reads them (and their quarantine) anew. */

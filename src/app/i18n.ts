@@ -745,7 +745,7 @@ const ru = {
     allSub: 'основной и сменные',
     allCount: 'основной и сменные · {n}',
     onlyMainNote: 'Деньги на сменных адресах в остаток карточки не войдут.',
-    allNote: 'Новые сменные адреса добавляются, когда вы заходите сюда. Адреса stealth не открываются никогда.',
+    allNote: 'Новые сменные адреса добавляются сами, пока кошелёк открыт. Адреса stealth не открываются никогда.',
     agree: 'Понимаю, что сервис me7 будет знать эти адреса',
     add: 'Добавить в Apple Wallet',
     making: 'Делаю карточку…',
@@ -980,6 +980,7 @@ const ru = {
     scannedTron: 'В коде был только адрес сети Tron. Что отправлять, TRX или USDT, выберите сами. Сейчас выбрано: {coin}.',
     unknownToken: 'В коде токен, которого в me7 нет.',
     unknownNetwork: 'Сеть из этого кода me7 не поддерживает.',
+    scanOther: 'Этот код для другой монеты или сети. Здесь отправляется {coin}.',
   },
   showcase: {
     usual: 'обычно',
@@ -1844,7 +1845,7 @@ const en: Dict = {
     allSub: 'main and changing',
     allCount: 'main and changing · {n}',
     onlyMainNote: 'Money on the changing addresses will not be in the card’s balance.',
-    allNote: 'New changing addresses are added when you come here. Stealth addresses are never opened.',
+    allNote: 'New changing addresses are added by themselves while the wallet is open. Stealth addresses are never opened.',
     agree: 'I understand that me7’s service will know these addresses',
     add: 'Add to Apple Wallet',
     making: 'Making the card…',
@@ -2079,6 +2080,7 @@ const en: Dict = {
     scannedTron: 'The code held only a Tron address. Choose what to send, TRX or USDT, yourself. Selected now: {coin}.',
     unknownToken: 'The code names a token me7 does not have.',
     unknownNetwork: 'me7 does not support the network in this code.',
+    scanOther: 'This code is for another coin or network. What is sent here is {coin}.',
   },
   showcase: {
     usual: 'usually',

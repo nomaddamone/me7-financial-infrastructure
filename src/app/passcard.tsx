@@ -1,10 +1,11 @@
 import encodeQR from 'qr';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { addressCode } from '../core/payqr.ts';
-import { lookPass, makePass, passLink, PassError, removePass, updatePass, type PassAsk } from '../net/pass.ts';
+import { lookPass, makePass, passLink, PassError, removePass, type PassAsk } from '../net/pass.ts';
+import { loadRotation, onRotation } from './addresses.ts';
 import type { Dict, Lang } from './i18n.ts';
 import { useOwnName } from './ownname.ts';
-import { keepPass, loadPass, passAddresses, type KeptPass } from './passcard.ts';
+import { keepPass, loadPass, passAddresses, passAsk, refreshPass, type KeptPass } from './passcard.ts';
 import type { Wallet } from './wallet.ts';
 import logo from './pass-art/logo.png';
 import stripEn from './pass-art/strip-en.png';
@@ -56,6 +57,22 @@ function Sample({ t, receive, address }: { t: Dict; receive: string; address: st
 }
 
 /**
+ * Keeps a card that watches all of the pocket's addresses up with them while the wallet is open: each time the
+ * addresses are read, the card is told of any it does not know yet.
+ */
+export function usePassSync(t: Dict, wallet: Wallet): void {
+  const lang: Lang = t.pass.lang;
+  const name = useOwnName(wallet.evm);
+  useEffect(
+    () =>
+      onRotation((w, r) => {
+        if (w.evm === wallet.evm) void refreshPass(wallet, r, name, lang).catch(() => undefined);
+      }),
+    [wallet, name, lang],
+  );
+}
+
+/**
  * The card in Apple Wallet: what it is, what me7's service learns when it is made, and the making itself.
  * Nothing is sent to the service until the user has chosen the addresses and said they understand.
  */
@@ -72,7 +89,7 @@ export function PassCard({ t, wallet }: { t: Dict; wallet: Wallet }) {
   const [fault, setFault] = useState('');
   const [asking, setAsking] = useState(false);
 
-  const askFor = (addresses: readonly string[]): PassAsk => ({ addresses, main: wallet.evm, ...(name ? { name } : {}), lang, zone: -new Date().getTimezoneOffset() });
+  const askFor = (addresses: readonly string[]): PassAsk => passAsk(wallet, addresses, name, lang);
   const say = (e: unknown) => setFault(e instanceof PassError && e.fault === 'limit' ? p.limit : p.down);
 
   // How many addresses "all of them" means, for the choice itself.
@@ -92,12 +109,8 @@ export function PassCard({ t, wallet }: { t: Dict; wallet: Wallet }) {
         if (!live) return;
         setPhones(seen.phones);
         if (!kept.all) return;
-        const now = await passAddresses(wallet);
-        if (now.length === kept.addresses.length && now.every((a) => kept.addresses.includes(a))) return;
-        await updatePass(kept.serial, kept.token, askFor(now));
-        const next = { ...kept, addresses: now };
-        keepPass(wallet, next);
-        if (live) setKept(next);
+        const next = await refreshPass(wallet, await loadRotation(wallet), name, lang);
+        if (live && next && next.addresses !== kept.addresses) setKept(next);
       } catch (e) {
         // The service no longer keeps the card (it was removed from the phone): this device forgets it too.
         if (live && e instanceof PassError && e.fault === 'unknown') (keepPass(wallet, null), setKept(null), setPhones(null));

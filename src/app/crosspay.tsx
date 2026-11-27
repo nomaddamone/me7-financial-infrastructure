@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { crossAssetName, crossBudget, type CrossOrder } from '../core/cross.ts';
 import { isValidEvmAddress } from '../core/evm.ts';
 import { isValidTronAddress, parseUnits } from '../core/index.ts';
-import { addressCode } from '../core/payqr.ts';
+import { addressCode, type PayRequest } from '../core/payqr.ts';
 import { planFromPockets, pocketTotals, type Pocket } from '../core/rotation.ts';
 import { formatUnits } from '../net/balances.ts';
 import { fetchCrossQuote, fetchCrossState, tellCrossDeposit } from '../net/cross.ts';
@@ -17,6 +17,7 @@ import { Spinner } from './fx.tsx';
 import { Hold } from './hold.tsx';
 import { announcePlan, relayErrorText, sendPlan } from './home.tsx';
 import type { Dict } from './i18n.ts';
+import { Scanner } from './payqr.tsx';
 import { isSessionPassword, type Wallet } from './wallet.ts';
 
 const cls = (...names: (string | false | null | undefined)[]) => names.filter(Boolean).join(' ');
@@ -122,6 +123,8 @@ export function CrossPay({
   const coin = rail.coin.toLowerCase();
   const [to, setTo] = useState(initialTo);
   const [amount, setAmount] = useState(initialAmount);
+  const [scanning, setScanning] = useState(false);
+  const [scanned, setScanned] = useState('');
   const [step, setStep] = useState<'form' | 'preparing' | 'review' | 'holding' | 'sending' | 'working'>(resume ? 'working' : 'form');
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -483,6 +486,26 @@ export function CrossPay({
     );
   }
 
+  /**
+   * Put what the scanner read into the form. The coin and the network are this screen's own, so a code that names
+   * another coin or network is refused, and nothing is sent: it is checked and confirmed like anything typed.
+   */
+  const applyScan = (r: PayRequest) => {
+    setScanning(false);
+    setError('');
+    setScanned('');
+    const here = `${rail.coin} ${rail.netName}`;
+    const contract = rail.net === 'tron' ? NET.tron.usdt : rail.token.toLowerCase();
+    const same = (c: string | undefined) => !!c && (rail.net === 'tron' ? c === contract : c.toLowerCase() === contract);
+    const network = rail.net === 'tron' ? r.network === 'tron' : r.network === 'evm' && (r.chainId === undefined || r.chainId === 1n);
+    const coin = r.asset ? same(ASSETS.find((a) => a.id === r.asset)?.contract) : r.token ? same(r.token) : !r.baseUnits;
+    if (!network || !coin) return setError(t.pay.scanOther.replace('{coin}', here));
+    setTo(r.address);
+    if (r.amount) setAmount(r.baseUnits ? formatUnits(BigInt(r.amount), 6, 6) : r.amount);
+    if (r.asset || r.token) setScanned(t.pay.scanned.replace('{coin}', here));
+  };
+  if (scanning) return <Scanner t={t} onResult={applyScan} onClose={() => setScanning(false)} />;
+
   return (
     <form class="panel" autocomplete="off" onSubmit={(e) => void prepare(e)}>
       <h2 class="title">{t.sendTitle}</h2>
@@ -504,7 +527,13 @@ export function CrossPay({
         <span class="field-label">
           {t.sendTo} <span class="dim">({rail.netName.toLowerCase()})</span>
         </span>
-        <input class="input" type="text" autocapitalize="none" autocorrect="off" spellcheck={false} value={to} onInput={(e) => setTo(e.currentTarget.value)} />
+        <span class="field-row">
+          <input class="input" type="text" autocapitalize="none" autocorrect="off" spellcheck={false} value={to} onInput={(e) => (setTo(e.currentTarget.value), setScanned(''))} />
+          <button type="button" class="btn" onClick={() => setScanning(true)}>
+            {t.pay.scan}
+          </button>
+        </span>
+        {scanned && <span class="dim">{scanned}</span>}
       </label>
       <label class="field">
         <span class="field-label">{x.amount}</span>
