@@ -99,24 +99,11 @@ export function whisperSamples(address: Uint8Array, band: Band, sampleRate: numb
   return out;
 }
 
-/** How loud one pitch is in a stretch of sound: the measure the listener goes by, also used to try out a pair of devices. */
-export function toneLoudness(samples: ArrayLike<number>, hz: number, sampleRate: number): number {
-  const turn = 2 * Math.cos((2 * Math.PI * hz) / sampleRate);
-  let one = 0;
-  let two = 0;
-  for (let n = 0; n < samples.length; n++) {
-    const next = (samples[n] as number) + turn * one - two;
-    two = one;
-    one = next;
-  }
-  return one * one + two * two - turn * one * two;
-}
-
 /**
  * A listener: sound is pushed into it as it comes, and it answers with the address once one is heard whole.
  * It listens on both bands at once, on whichever of them the sound's sample rate can carry.
  */
-export function createWhisperListener(sampleRate: number): { push(samples: Float32Array): Uint8Array | null; heard(): { band: Band; opened: number; failed: number }[] } {
+export function createWhisperListener(sampleRate: number): { push(samples: Float32Array): Uint8Array | null } {
   const bands = (Object.keys(BANDS) as Band[]).filter((b) => BANDS[b] + TONES * STEP < sampleRate / 2 - 500);
   const turns = bands.map((b) => Array.from({ length: TONES }, (_, tone) => 2 * Math.cos((2 * Math.PI * (BANDS[b] + tone * STEP)) / sampleRate)));
   const window = Math.round(HEARD * sampleRate);
@@ -132,8 +119,6 @@ export function createWhisperListener(sampleRate: number): { push(samples: Float
   /** Sayings that opened right and failed their check sum: what was heard of each half-byte, kept to be added to the next saying. */
   const failed = new Map<string, Float32Array>();
   const span = HOPS * (FRAME - 1);
-  /** For trying out a pair of devices: how many times each band's opening was heard, and how many of those sayings failed their check sum. */
-  const counts = bands.map((band) => ({ band, opened: 0, failed: 0 }));
 
   function loudness(from: number): Float32Array {
     const heard = new Float32Array(bands.length * TONES);
@@ -167,7 +152,6 @@ export function createWhisperListener(sampleRate: number): { push(samples: Float
       if (!(mine > 0) || mine * (TONES - 1) < 4 * rest) return null;
     }
     // The opening is there. Each half-byte is the loudest of its sixteen tones.
-    (counts[b] as { opened: number }).opened++;
     const symbols = BODY * 2;
     const heard = new Float32Array(symbols * 16);
     for (let i = 0; i < symbols; i++) {
@@ -198,12 +182,10 @@ export function createWhisperListener(sampleRate: number): { push(samples: Float
       if (together) return together;
     }
     failed.set(`${b}:${end}`, heard);
-    (counts[b] as { failed: number }).failed++;
     return null;
   }
 
   return {
-    heard: () => counts.map((c) => ({ ...c })),
     push(samples) {
       const joined = new Float32Array(kept.length + samples.length);
       joined.set(kept);

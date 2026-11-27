@@ -2,7 +2,7 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { toChecksumAddress } from '../core/evm.ts';
 import { addressCode } from '../core/payqr.ts';
-import { BANDS, createWhisperListener, whisperSamples, type Band } from '../core/whisper.ts';
+import { BANDS, createWhisperListener, whisperSamples, WHISPER_SECONDS, type Band } from '../core/whisper.ts';
 import { Spinner } from './fx.tsx';
 import type { Dict } from './i18n.ts';
 
@@ -107,32 +107,55 @@ function hearAddress(onFound: (address: string) => void, onFail: (why: 'denied' 
 export function Whisper({ t, address }: { t: Dict; address: string }) {
   const w = t.whisper;
   const [band, setBand] = useState<Band | null>(null);
-  const [tried, setTried] = useState(false);
+  // How the last saying ended: said to the end, or cut short by the user. Null before the first.
+  const [last, setLast] = useState<'said' | 'cut' | null>(null);
   const [fault, setFault] = useState(false);
+  const [now, setNow] = useState(0);
+  const until = useRef(0);
+  const cutting = useRef(false);
   const silence = useRef<(() => void) | null>(null);
   // Another address shown, or the screen left: what was being said is cut short.
   useEffect(() => () => silence.current?.(), [address]);
+  useEffect(() => setLast(null), [address]);
+  // While it is being said, the seconds left are counted down.
+  useEffect(() => {
+    if (!band) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [band]);
 
   const say = (next: Band) => {
     silence.current?.();
     setFault(false);
     try {
+      cutting.current = false;
       const end = sayAddress(address, next, () => {
-        if (silence.current === end) (silence.current = null), setBand(null);
+        if (silence.current !== end) return;
+        silence.current = null;
+        setBand(null);
+        setLast(cutting.current ? 'cut' : 'said');
       });
       silence.current = end;
+      until.current = Date.now() + WHISPER_SECONDS * TIMES * 1000;
       setBand(next);
-      setTried(true);
+      setLast(null);
     } catch {
       setFault(true);
     }
   };
+  const cut = () => {
+    cutting.current = true;
+    silence.current?.();
+  };
+  const total = WHISPER_SECONDS * TIMES * 1000;
+  const left = Math.max(0, until.current - now);
 
   return (
     <div class="whisper">
       <div class="row">
         {band ? (
-          <button type="button" class="btn" onClick={() => silence.current?.()}>
+          <button type="button" class="btn" onClick={cut}>
             {w.stop}
           </button>
         ) : (
@@ -140,18 +163,25 @@ export function Whisper({ t, address }: { t: Dict; address: string }) {
             {w.say}
           </button>
         )}
-        {(tried || band) && (
+        {(last || band) && (
           <button type="button" class="btn" disabled={band === 'loud'} onClick={() => say('loud')}>
             {w.louder}
           </button>
         )}
       </div>
       {band && (
+        <>
+          <progress class="whisper-bar" max={total} value={total - left} />
+          <p class="note" role="status">
+            <Spinner /> {(band === 'loud' ? w.sayingLoud : w.saying).replace('{n}', String(Math.ceil(left / 1000)))}
+          </p>
+        </>
+      )}
+      {!band && last && (
         <p class="note" role="status">
-          <Spinner /> {band === 'loud' ? w.sayingLoud : w.saying}
+          {last === 'said' ? w.said : w.cut} {w.sayHint}
         </p>
       )}
-      {!band && tried && <p class="note">{w.sayHint}</p>}
       {fault && <p class="alert">{w.noSound}</p>}
     </div>
   );

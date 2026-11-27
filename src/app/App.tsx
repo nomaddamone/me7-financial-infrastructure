@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'preact/hooks';
 import { wipe } from '../core/index.ts';
 import { readPayAskHash } from '../core/payrequest.ts';
 import { PayPage } from './paypage.tsx';
-import { SoundCheck } from './soundcheck.tsx';
 import { Register, SignIn, type Picked } from './auth.tsx';
 import { coldAddress, ColdHome, LedgerConnect, type ColdSession } from './cold.tsx';
 import { Backdrop } from './fx.tsx';
@@ -37,11 +36,8 @@ export function App() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   // A link that asks for a payment opens on the request itself, before anything of the wallet: the payer needs no account.
   const [asked, setAsked] = useState(() => readPayAskHash(location.hash));
-  // me7.network/#sound: a measure of what sound gets from one device to another, for choosing the whisper's band.
-  const [sounding, setSounding] = useState(() => location.hash === '#sound');
   const leaveAsked = () => {
     setAsked(null);
-    setSounding(false);
     try {
       history.replaceState(null, '', location.pathname);
     } catch {
@@ -151,12 +147,7 @@ export function App() {
             <PayPage t={t} ask={asked} onLeave={leaveAsked} />
           </main>
         )}
-        {sounding && (
-          <main class="screen">
-            <SoundCheck t={t} onLeave={leaveAsked} />
-          </main>
-        )}
-        <main class="screen" key={screen} hidden={section !== 'finance' || !!asked || sounding}>
+        <main class="screen" key={screen} hidden={section !== 'finance' || !!asked}>
           {screen === 'welcome' && (
             <Welcome
               t={t}
