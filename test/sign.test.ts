@@ -20,6 +20,8 @@ interface Shot {
   /** Seen at a slant: one way across is this much narrower, and the narrow way lies at this angle. */
   squash?: number;
   slant?: number;
+  /** Seen at a slant and close: how much the far side is drawn in by the perspective (see `lean` in src/core/sign.ts). */
+  lean?: number;
   /** How far each point is smeared, in points, and how much noise is laid over, out of 255. */
   blur?: number;
   hiss?: number;
@@ -31,7 +33,7 @@ interface Shot {
 
 /** A photograph of a sign, as a camera pointed at a screen might take it: drawn point by point, then smeared and made noisy. */
 function shoot(address: Uint8Array, kind: SignKind, shot: Shot = {}): Grey {
-  const { width = 640, height = 480, cx = width / 2, cy = height / 2, radius = 170, turns = [0.11, 0.62, 0.87], squash = 1, slant = 0, blur = 1, hiss = 6, light = 235, dark = 18, seed = 1 } = shot;
+  const { width = 640, height = 480, cx = width / 2, cy = height / 2, radius = 170, turns = [0.11, 0.62, 0.87], squash = 1, slant = 0, lean = 0, blur = 1, hiss = 6, light = 235, dark = 18, seed = 1 } = shot;
   const bits = signBits(address, kind);
   const random = noise(seed);
   // The name in the middle and some clutter outside the sign: thin strokes of light that carry nothing.
@@ -67,11 +69,15 @@ function shoot(address: Uint8Array, kind: SignKind, shot: Shot = {}): Grey {
     for (let px = 0; px < width; px++) {
       let sum = 0;
       for (const [ox, oy] of [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]] as const) {
-        // From the picture back onto the sign: the slant is undone.
+        // From the picture back onto the sign: the slant is undone, and then the perspective.
         const ux = (px + ox - cx) / radius;
         const uy = (py + oy - cy) / radius;
-        const x = (ux * c + uy * s) / squash;
-        const y = -ux * s + uy * c;
+        const vx = (ux * c + uy * s) / squash;
+        const vy = -ux * s + uy * c;
+        const wx = vx / (1 - lean * lean) - lean / (1 - lean * lean);
+        const wy = vy / Math.sqrt(1 - lean * lean);
+        const x = wx / (1 - lean * wx);
+        const y = wy / (1 - lean * wx);
         sum += lit(x * c - y * s, x * s + y * c) ? light : dark;
       }
       sharp[py * width + px] = sum / 4;
@@ -145,6 +151,14 @@ describe('the sign: an address as rings of arcs', { timeout: 60_000 }, () => {
       expect(reads({ squash: 0.9, slant }), `a tenth narrower at ${slant}`).toBe(true);
       expect(reads({ squash: 0.8, slant, radius: 190 }), `a fifth narrower at ${slant}`).toBe(true);
     }
+  });
+
+  it('is read at a slant and close, where the far side is smaller than the near', () => {
+    expect(reads({ squash: 0.89, slant: 0.3, lean: 0.12, radius: 175 })).toBe(true);
+    expect(reads({ squash: 0.89, slant: 2.0, lean: -0.15, radius: 175 })).toBe(true);
+    expect(reads({ squash: 0.8, slant: 1.2, lean: 0.25, radius: 180 })).toBe(true);
+    expect(reads({ squash: 0.85, slant: 0.9, lean: -0.3, radius: 150, cx: 300, cy: 250, blur: 2, hiss: 10 })).toBe(true);
+    expect(reads({ width: 720, height: 1280, cx: 320, cy: 580, radius: 180, squash: 0.79, slant: 1.5, lean: 0.2 })).toBe(true);
   });
 
   it('is read smeared, noisy and dim', () => {

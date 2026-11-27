@@ -132,15 +132,97 @@ interface Lie {
   a: number;
   b: number;
   turn: number;
+  /**
+   * How much the sign leans away from the camera. A sign held at a slant and close is seen in perspective: its far
+   * side is smaller than its near side. The circle round it is still an oval, but the rings inside are no longer in
+   * the oval's middle: they are crowded towards the far side. Nought when the sign is seen flat or from far off.
+   * `leanTurn` is which way the far side lies, as an angle from the oval's narrow way.
+   */
+  lean?: number;
+  leanTurn?: number;
 }
 
 const place = (lie: Lie, radius: number, angle: number): [number, number] => {
-  const x = lie.a * radius * Math.cos(angle);
-  const y = lie.b * radius * Math.sin(angle);
-  const c = Math.cos(lie.turn);
-  const s = Math.sin(lie.turn);
-  return [lie.cx + x * c - y * s, lie.cy + x * s + y * c];
+  const m = lie.lean ?? 0;
+  if (!m) {
+    const x = lie.a * radius * Math.cos(angle);
+    const y = lie.b * radius * Math.sin(angle);
+    const c = Math.cos(lie.turn);
+    const s = Math.sin(lie.turn);
+    return [lie.cx + x * c - y * s, lie.cy + x * s + y * c];
+  }
+  // On the sign, x runs the way it leans away. A place there is drawn towards the far side by the perspective, and
+  // the edge of the sign stays where it is: the circle is carried onto itself, its middle moved by `m` towards the
+  // far side. That circle is then laid onto the oval found in the picture.
+  const x = radius * Math.cos(angle);
+  const y = radius * Math.sin(angle);
+  const far = 1 + m * x;
+  const ux = (x + m) / far;
+  const uy = (y * Math.sqrt(1 - m * m)) / far;
+  const lc = Math.cos(lie.leanTurn ?? 0);
+  const ls = Math.sin(lie.leanTurn ?? 0);
+  const vx = ux * lc - uy * ls;
+  const vy = ux * ls + uy * lc;
+  const turn = lie.a >= lie.b ? lie.turn : lie.turn + Math.PI / 2;
+  const wide = Math.max(lie.a, lie.b);
+  const slim = Math.min(lie.a, lie.b);
+  const c = Math.cos(turn);
+  const s = Math.sin(turn);
+  return [lie.cx + s * slim * vx + c * wide * vy, lie.cy - c * slim * vx + s * wide * vy];
 };
+
+/**
+ * How much a sign found in a picture leans away, judged by its rings: the lean at which they are most clearly lit
+ * where they should be and dark between. Either side may be the far one.
+ */
+function leanOf(g: Grey, lie: Lie): Lie {
+  let angles = 40;
+  const clear = (bx: number, by: number): number => {
+    const leaning = { ...lie, lean: Math.hypot(bx, by), leanTurn: Math.atan2(by, bx) };
+    let lit = 0;
+    let dark = 0;
+    for (let k = 0; k < angles; k++) {
+      const angle = (k / angles) * 2 * Math.PI;
+      for (const r of SIGN_RINGS) {
+        lit += at(g, ...place(leaning, r - 0.026, angle)) + at(g, ...place(leaning, r, angle)) + at(g, ...place(leaning, r + 0.026, angle));
+        dark += at(g, ...place(leaning, r - 0.05, angle)) + at(g, ...place(leaning, r + 0.05, angle));
+      }
+      dark += at(g, ...place(leaning, 0.44, angle));
+    }
+    return lit / 9 - dark / 7;
+  };
+  // A sign cannot lean more than its slant allows: one seen round does not lean at all, and one a fifth narrower
+  // leans by a third at the very most (held as close as a camera can focus).
+  const narrow = Math.min(lie.a, lie.b) / Math.max(lie.a, lie.b);
+  const cap = Math.min(0.6, 0.7 * Math.sqrt(1 / (narrow * narrow) - 1) + 0.03);
+  // The far side may lie any way: mostly across the oval, but not exactly when the sign is off the middle of the
+  // picture. So the lean is looked for both ways across, coarsely and then finely round the best.
+  let best: [number, number] = [0, 0];
+  let most = clear(0, 0);
+  const coarse = Math.max(0.012, cap / 11);
+  for (let by = -cap; by <= cap + 0.001; by += coarse) {
+    for (let bx = -cap; bx <= cap + 0.001; bx += coarse) {
+      if (Math.hypot(bx, by) > cap + 0.001) continue;
+      const score = clear(bx, by);
+      if (score > most) (most = score), (best = [bx, by]);
+    }
+  }
+  // Finely, the rings are looked at all the way round and close to their edges: a lean a hundredth off already
+  // puts the inner ring's places a little wrong.
+  angles = 90;
+  most = clear(best[0], best[1]);
+  for (const fine of [coarse / 3, coarse / 9, coarse / 27]) {
+    const [nx, ny] = best;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const score = clear(nx + dx * fine, ny + dy * fine);
+        if (score > most) (most = score), (best = [nx + dx * fine, ny + dy * fine]);
+      }
+    }
+  }
+  const lean = Math.hypot(best[0], best[1]);
+  return lean < 0.005 ? lie : { ...lie, lean, leanTurn: Math.atan2(best[1], best[0]) };
+}
 
 const TABLES = new Map<number, { cos: Float32Array; sin: Float32Array }>();
 function round(angles: number): { cos: Float32Array; sin: Float32Array } {
@@ -173,11 +255,12 @@ function roundMean(g: Grey, lie: Lie, radius: number, angles: number): number {
  * The higher, the better the fit. The blunt measure looks at the middle of each ring and of each dark round, and
  * rises from far off; the sharp one looks at a ring's edges too, and falls off as soon as the lie is a little wrong.
  */
-function fit(g: Grey, lie: Lie, angles: number, sharp: boolean): number {
+function fit(g: Grey, lie: Lie, angles: number, sharp: boolean | 'edge'): number {
   const before = roundMean(g, lie, sharp ? 0.955 : 0.94, angles);
   const after = roundMean(g, lie, sharp ? 1.045 : 1.065, angles);
   // The circle round the sign is lit all the way, with dark on both sides of it.
   const edge = roundMean(g, lie, 1, angles) - (before + after) / 2;
+  if (sharp === 'edge') return edge;
   let lit = 0;
   let dark = roundMean(g, lie, 0.44, angles) + before + after;
   if (!sharp) {
@@ -228,7 +311,7 @@ function seek(g: Grey): Lie[] {
 }
 
 /** A lie made better: each of its measures is nudged in turn for as long as the fit rises, in ever smaller steps. */
-function settle(g: Grey, start: Lie, steps: readonly number[], sharp: boolean): Lie {
+function settle(g: Grey, start: Lie, steps: readonly number[], sharp: boolean | 'edge'): Lie {
   let lie = start;
   let best = fit(g, lie, 72, sharp);
   for (const part of steps) {
@@ -489,20 +572,26 @@ function look(picture: Grey): { address: Uint8Array; kind: SignKind } | null {
   ovals.sort((p, q) => q.score - p.score);
   note(() => ` ovals: ${ovals.length}`);
   for (const { lie: rough, score } of ovals.slice(0, 4)) {
-    const lie = settle(g, rough, [0.006, 0.003, 0.0015], true);
-    note(() => `  oval: middle ${pc(lie.cx, g.width)}%,${pc(lie.cy, g.height)}% size ${Math.round(lie.a)}x${Math.round(lie.b)}px narrow ${(Math.min(lie.a, lie.b) / Math.max(lie.a, lie.b)).toFixed(2)} fit ${Math.round(score)}`);
-    const tries = SIGN_RINGS.map((ring) => spokes(g, lie, ring).map((spoke) => ringBits(g, lie, ring, spoke)));
-    // The likeliest spoke of every ring first; then each mix with the second likeliest.
-    for (let mask = 0; mask < 8; mask++) {
-      const bits = new Uint8Array(SIGN_RINGS.length * SIGN_CELLS);
-      tries.forEach((ring, k) => bits.set(ring[(mask >> k) & 1] as Uint8Array, k * SIGN_CELLS));
-      const read = readSignBits(bits);
-      if (read) {
-        note(() => `  READ (spoke mix ${mask})`);
-        return read;
+    // The oval is made exact by the circle round the sign alone: the rings inside are where the lean puts them, which is
+    // found next.
+    const flat = settle(g, rough, [0.006, 0.003, 0.0015], 'edge');
+    const leaning = leanOf(g, flat);
+    // Read with the lean the rings point to; and, should that fail its check sum, as if the sign did not lean.
+    for (const lie of leaning === flat ? [flat] : [leaning, flat]) {
+      note(() => `  oval: middle ${pc(lie.cx, g.width)}%,${pc(lie.cy, g.height)}% size ${Math.round(lie.a)}x${Math.round(lie.b)}px narrow ${(Math.min(lie.a, lie.b) / Math.max(lie.a, lie.b)).toFixed(2)} lean ${(lie.lean ?? 0).toFixed(2)} fit ${Math.round(score)}`);
+      const tries = SIGN_RINGS.map((ring) => spokes(g, lie, ring).map((spoke) => ringBits(g, lie, ring, spoke)));
+      // The likeliest spoke of every ring first; then each mix with the second likeliest.
+      for (let mask = 0; mask < 8; mask++) {
+        const bits = new Uint8Array(SIGN_RINGS.length * SIGN_CELLS);
+        tries.forEach((ring, k) => bits.set(ring[(mask >> k) & 1] as Uint8Array, k * SIGN_CELLS));
+        const read = readSignBits(bits);
+        if (read) {
+          note(() => `  READ (spoke mix ${mask})`);
+          return read;
+        }
       }
+      note(() => '  check sum failed');
     }
-    note(() => '  check sum failed');
   }
   return null;
 }
