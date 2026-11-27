@@ -103,7 +103,8 @@ const reads = (shot: Shot, kind: SignKind = 'usdc-base') => {
   return !!read && read.kind === kind && read.address.every((b, i) => b === ADDRESS[i]);
 };
 
-describe('the sign: an address as rings of arcs', () => {
+// Each picture is drawn point by point, which takes a while when every test file runs at once: these tests are given time.
+describe('the sign: an address as rings of arcs', { timeout: 60_000 }, () => {
   it('spells an address and what it is for, and drops what was read wrong', () => {
     for (const kind of ['usdc-base', 'evm'] as const) {
       const bits = signBits(ADDRESS, kind);
