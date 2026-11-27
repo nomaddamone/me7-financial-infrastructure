@@ -86,11 +86,24 @@ export function whisperSamples(address: Uint8Array, band: Band, sampleRate: numb
       for (let n = from; n < to; n++) {
         const near = Math.min(n - from, to - 1 - n);
         const swell = near >= edge ? 1 : 0.5 - 0.5 * Math.cos((Math.PI * near) / edge);
-        out[n] = 0.8 * swell * Math.sin(turn * n);
+        out[n] = 0.95 * swell * Math.sin(turn * n);
       }
     });
   }
   return out;
+}
+
+/** How loud one pitch is in a stretch of sound: the measure the listener goes by, also used to try out a pair of devices. */
+export function toneLoudness(samples: ArrayLike<number>, hz: number, sampleRate: number): number {
+  const turn = 2 * Math.cos((2 * Math.PI * hz) / sampleRate);
+  let one = 0;
+  let two = 0;
+  for (let n = 0; n < samples.length; n++) {
+    const next = (samples[n] as number) + turn * one - two;
+    two = one;
+    one = next;
+  }
+  return one * one + two * two - turn * one * two;
 }
 
 /**

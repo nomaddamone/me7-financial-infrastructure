@@ -199,3 +199,9 @@ button.aline:focus-visible {
   display: grid;
   gap: 8px;
 }
+.sound-rows {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
