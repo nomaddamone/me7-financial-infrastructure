@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { toneLoudness } from '../core/whisper.ts';
+import { bytesToHex } from '@noble/hashes/utils.js';
+import { addressCode } from '../core/payqr.ts';
+import { createWhisperListener, toneLoudness } from '../core/whisper.ts';
 import { CopyButton } from './home.tsx';
 import type { Dict } from './i18n.ts';
 
@@ -21,6 +23,8 @@ export function SoundCheck({ t, onLeave }: { t: Dict; onLeave: () => void }) {
   const [mode, setMode] = useState<'idle' | 'playing' | 'listening' | 'denied'>('idle');
   const [rows, setRows] = useState<{ hz: number; db: number }[]>([]);
   const [about, setAbout] = useState('');
+  // A whisper from the wallet's own receive screen is listened for as well: whether it was heard, and if not, how far it got.
+  const [said, setSaid] = useState('');
   const stop = useRef<(() => void) | null>(null);
   useEffect(() => () => stop.current?.(), []);
 
@@ -86,6 +90,7 @@ export function SoundCheck({ t, onLeave }: { t: Dict; onLeave: () => void }) {
     };
     stop.current = end;
     setRows([]);
+    setSaid('');
     setMode('listening');
     media.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 }, video: false }).then(
       (s) => {
@@ -96,6 +101,8 @@ export function SoundCheck({ t, onLeave }: { t: Dict; onLeave: () => void }) {
         const set = s.getAudioTracks()[0]?.getSettings() ?? {};
         setAbout(`${rate} Hz · echo ${String(set.echoCancellation)} · noise ${String(set.noiseSuppression)} · gain ${String(set.autoGainControl)} · mic ${String(set.sampleRate ?? '?')} Hz`);
         const seen = TONES.map(() => [] as number[]);
+        const whisper = createWhisperListener(rate);
+        let address = '';
         const source = ctx.createMediaStreamSource(s);
         const tap = ctx.createScriptProcessor(4096, 1, 1);
         const mute = ctx.createGain();
@@ -105,9 +112,12 @@ export function SoundCheck({ t, onLeave }: { t: Dict; onLeave: () => void }) {
           if (over) return;
           // The stretch is faded in and out before it is measured, so that a loud tone does not spill onto its neighbours' pitches.
           const raw = e.inputBuffer.getChannelData(0);
+          const found = address ? null : whisper.push(raw);
+          if (found) address = addressCode(`0x${bytesToHex(found)}`);
           const data = raw.map((v, n) => v * (0.5 - 0.5 * Math.cos((2 * Math.PI * n) / (raw.length - 1))));
           TONES.forEach((hz, i) => hz < rate / 2 - 500 && (seen[i] as number[]).push(toneLoudness(data, hz, rate)));
           if (++chunks % 6 !== 0) return;
+          setSaid(`whisper: ${address ? `heard, code ${address}` : 'not heard'} · ${whisper.heard().map((c) => `${c.band} opened ${c.opened} failed ${c.failed}`).join(' · ')}`);
           // How far the loudest moment of each tone stood above what that pitch is like the rest of the time.
           setRows(
             TONES.map((hz, i) => {
@@ -129,7 +139,7 @@ export function SoundCheck({ t, onLeave }: { t: Dict; onLeave: () => void }) {
     );
   };
 
-  const report = [about, ...rows.map((r) => `${(r.hz / 1000).toFixed(1)} kHz  ${r.db >= 0 ? '+' : ''}${r.db} dB`), navigator.userAgent].join('\n');
+  const report = [about, said, ...rows.map((r) => `${(r.hz / 1000).toFixed(1)} kHz  ${r.db >= 0 ? '+' : ''}${r.db} dB`), navigator.userAgent].join('\n');
   return (
     <section class="panel">
       <h2 class="title">{w.checkTitle}</h2>
@@ -146,6 +156,7 @@ export function SoundCheck({ t, onLeave }: { t: Dict; onLeave: () => void }) {
       {mode === 'listening' && <p class="note" role="status">{w.checkListening}</p>}
       {mode === 'denied' && <p class="alert">{w.denied}</p>}
       {about && <p class="note">{about}</p>}
+      {said && <p class="note">{said}</p>}
       {rows.length > 0 && (
         <>
           <pre class="sound-rows">{rows.map((r) => `${(r.hz / 1000).toFixed(1).padStart(4)} kHz  ${'█'.repeat(Math.max(0, Math.min(20, Math.round(r.db / 2))))} ${r.db >= 0 ? '+' : ''}${r.db} dB`).join('\n')}</pre>
