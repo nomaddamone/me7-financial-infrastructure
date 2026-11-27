@@ -69,6 +69,7 @@ import { HeldNote } from './held.tsx';
 import { markTold, quarantined, quarantineOf, syncQuarantine, type Quarantined } from './quarantine.ts';
 import { useOwnName } from './ownname.ts';
 import { PassCard, usePassSync } from './passcard.tsx';
+import { SignOrQr } from './sign.tsx';
 import { Hearer, heardNote, Whisper } from './whisper.tsx';
 import { addressCode } from '../core/payqr.ts';
 import { CONTACT_NAME_MAX, loadContacts, markContactsChanged, saveContacts, syncContacts, withContact, type Contact } from './contacts.ts';
@@ -618,7 +619,12 @@ function Receive({ t, wallet, prices, initial, onClose }: { t: Dict; wallet: Wal
         </>
       ) : current.address ? (
         <>
-          <BrandQr text={payText(current.id, current.address, ask)} reveal={current.address} />
+          {current.id === 'usdc' || current.id === 'evm' ? (
+            // An Ethereum-style address is shown as me7's sign; a tap turns it into the ordinary code.
+            <SignOrQr t={t} address={current.address} kind={current.id === 'usdc' ? 'usdc-base' : 'evm'} text={payText(current.id, current.address, ask)} />
+          ) : (
+            <BrandQr text={payText(current.id, current.address, ask)} reveal={current.address} />
+          )}
           <AddressLine t={t} address={current.address} />
           <AddressCode t={t} address={current.address} note />
           {/* The changing address can be said as sound to a sender standing by. */}

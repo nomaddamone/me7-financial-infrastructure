@@ -1,0 +1,116 @@
+/* me7's sign: an address as rings of arcs round the name, and the turn from it to an ordinary QR code. */
+.sign-or-qr {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.sign-face {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sign-face:disabled {
+  cursor: default;
+}
+.sign-hint {
+  margin: 0;
+  text-align: center;
+}
+.sign-box {
+  width: 280px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.sign {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* The name, as on the start page: a dim outline and a streak of light running along it. */
+.sign-name text {
+  font: 700 40px var(--mono);
+  letter-spacing: -0.04em;
+  text-anchor: middle;
+  fill: rgb(255 255 255 / 0.05);
+  stroke: #5a5a5a;
+  stroke-width: 0.9;
+}
+.sign-name .sign-run {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-dasharray: 41 187;
+  animation: sign-run 3.2s linear infinite;
+}
+@keyframes sign-run {
+  to {
+    stroke-dashoffset: -228;
+  }
+}
+
+.sign-edge {
+  fill: none;
+  stroke: var(--fg);
+}
+.sign-orbit {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.5;
+}
+.sign-arcs {
+  fill: none;
+  stroke: var(--fg);
+}
+.sign-spoke {
+  fill: var(--fg);
+}
+/* The rings turn slowly, each its own way and from its own start. */
+.sign-ring {
+  transform-origin: 0 0;
+  animation: sign-turn var(--t, 80s) linear infinite;
+  animation-delay: calc(var(--from, 0) * var(--t, 80s) * -1);
+}
+.sign-ring--back {
+  animation-direction: reverse;
+}
+@keyframes sign-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A tap: the sign winds up and is gone; coming back, it unwinds into place. */
+.sign-box--out {
+  animation: sign-out 0.46s cubic-bezier(0.6, 0, 0.9, 0.4) forwards;
+}
+.sign-box--in {
+  animation: sign-in 0.5s cubic-bezier(0.1, 0.7, 0.3, 1) backwards;
+}
+@keyframes sign-out {
+  to {
+    transform: rotate(200deg) scale(0.12);
+    opacity: 0;
+  }
+}
+@keyframes sign-in {
+  from {
+    transform: rotate(-160deg) scale(0.2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sign-ring,
+  .sign-name .sign-run,
+  .sign-box--out,
+  .sign-box--in {
+    animation: none;
+  }
+}

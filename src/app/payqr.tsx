@@ -1,7 +1,10 @@
 import encodeQR from 'qr';
 import decodeQR from 'qr/decode.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { bytesToHex } from '@noble/hashes/utils.js';
+import { toChecksumAddress } from '../core/evm.ts';
 import { addressCode, addressPattern, parsePayText, type PayRequest } from '../core/payqr.ts';
+import { greyOf, readSign } from '../core/sign.ts';
 import { parseStealthCode } from '../core/stealth.ts';
 import { NET } from '../net/endpoints.ts';
 
@@ -242,7 +245,10 @@ function readFrame(source: CanvasImageSource, width: number, height: number, can
   try {
     text = decodeQR({ width: image.width, height: image.height, data: image.data });
   } catch {
-    return null;
+    // No QR code: it may be me7's own sign.
+    const sign = readSign(greyOf(image.data, image.width, image.height, 800));
+    if (!sign) return null;
+    return { request: { network: 'evm', address: toChecksumAddress(bytesToHex(sign.address)), ...(sign.kind === 'usdc-base' ? { asset: 'usdc-base' } : {}) } };
   }
   const request = readPayText(text);
   return request ? { request } : { other: true };

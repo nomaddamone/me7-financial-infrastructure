@@ -23,6 +23,10 @@ const ru = {
   import: 'войти в систему',
   dropKey: 'отпустите файл-ключ, чтобы войти',
   sourceCode: 'исходный код на GitHub',
+  sign: {
+    toQr: 'Это знак me7: его читает сканер me7. Нажмите на него, чтобы показать обычный QR-код.',
+    toSign: 'Нажмите на код, чтобы вернуть знак me7.',
+  },
   whisper: {
     say: 'прошептать',
     louder: 'громче',
@@ -1146,6 +1150,10 @@ const en: Dict = {
   import: 'sign in',
   dropKey: 'drop the key file to sign in',
   sourceCode: 'source code on GitHub',
+  sign: {
+    toQr: 'This is the me7 sign: the me7 scanner reads it. Tap it to show an ordinary QR code.',
+    toSign: 'Tap the code to bring the me7 sign back.',
+  },
   whisper: {
     say: 'whisper',
     louder: 'louder',
